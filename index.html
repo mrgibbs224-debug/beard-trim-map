@@ -61,6 +61,7 @@ h1{font-size:clamp(34px,9vw,54px);line-height:.96;margin:10px 0 14px;letter-spac
 .camera-stage{position:relative;height:100dvh;min-height:580px;background:#020405;overflow:hidden}
 video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1) scale(.88);transform-origin:center center;transition:transform .16s ease;background:#000}
 #overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:7}
+.scan-debug-panel{position:absolute;z-index:40;top:max(68px,calc(env(safe-area-inset-top) + 58px));left:8px;right:8px;max-height:42vh;overflow:auto;padding:9px 10px;border:2px solid #ff2bd6;border-radius:10px;background:rgba(0,0,0,.88);color:#fff;font:700 11px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;pointer-events:none;box-shadow:0 4px 24px #000}
 .camera-shade{position:absolute;inset:0;z-index:4;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.10) 28%,rgba(0,0,0,.02) 58%,rgba(0,0,0,.72) 100%)}
 .scan-header{position:absolute;top:max(12px,env(safe-area-inset-top));left:0;right:0;padding:8px 16px 0;z-index:8}
 .scan-head-row{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:10px}
@@ -305,7 +306,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
 <body>
 <div class="app">
   <header id="mainTopbar" class="topbar">
-    <div class="brand"><div class="brandmark">✦</div><span>BEARD TRIM MAP <b class="build-badge">v31</b></span></div>
+    <div class="brand"><div class="brandmark">✦</div><span>BEARD TRIM MAP <b class="build-badge"></b></span></div>
     <div class="pill" id="scanStatusPill">No scan</div>
   </header>
 
@@ -338,6 +339,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
       <video id="video" autoplay muted playsinline></video>
       <div id="scanFaceLight" class="scan-face-light"></div>
       <canvas id="overlay"></canvas>
+      <div id="scanDebugPanel" class="scan-debug-panel hidden" role="status" aria-live="polite"></div>
       <div class="camera-shade"></div>
       <div id="faceGuide" class="face-guide"></div>
       <div id="scanSweep" class="scan-sweep"></div>
@@ -346,7 +348,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
       <div class="scan-header">
         <div class="scan-head-row">
           <button id="closeScanBtn" class="icon-btn" type="button" aria-label="Close scanner">×</button>
-          <div class="scan-center"><div class="scanner-brand">BEARD <span>TRIM MAP</span><b class="build-badge">v31</b></div><div id="scanProgress" class="scan-progress"></div><div id="engineBadge" class="engine-badge">Face scanner</div></div>
+          <div class="scan-center"><div class="scanner-brand">BEARD <span>TRIM MAP</span><b class="build-badge"></b></div><div id="scanProgress" class="scan-progress"></div><div id="engineBadge" class="engine-badge">Face scanner</div></div>
           <button id="meshToggleBtn" class="icon-btn" type="button" aria-label="Toggle face map">⌁</button>
         </div>
         <div class="step-copy">
@@ -454,7 +456,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
         <div class="live-map-head">
           <button id="closeLiveMapBtn" class="icon-btn" type="button" aria-label="Close live map">×</button>
           <div class="live-map-center">
-            <div class="live-map-brand">BEARD <span>TRIM MAP</span><b class="build-badge">v31</b></div>
+            <div class="live-map-brand">BEARD <span>TRIM MAP</span><b class="build-badge"></b></div>
             <div id="liveStyleName" class="live-map-style">Short Boxed Beard</div>
             <div class="live-map-sub">ContourLock AR • scan-calibrated stencil</div>
           </div>
@@ -512,6 +514,7 @@ import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 
 const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
+const APP_VERSION = 'v31';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 
@@ -529,7 +532,10 @@ let previewAbort=null, previewTimer=null, poseLockBuzzed=false, uiAudioCtx=null;
 const aiPreviewCache=new Map();
 const isAndroidBrowser=/Android|SamsungBrowser/i.test(navigator.userAgent);
 const overlayDebugEnabled=new URLSearchParams(location.search).get('scanDebug')==='1';
-const overlayDiagnostics={drawInvocations:0,pathsDrawn:0,clearEvents:0,lastClearReason:'initial',landmarkCount:0,inferenceErrors:0,lastReportAt:0};
+const scanDebugPanel=$("#scanDebugPanel");
+const overlayDiagnostics={facesDetected:0,drawInvocations:0,pathsDrawn:0,clearEvents:0,lastClearReason:'initial',landmarkCount:0,inferenceErrors:0,lastReportAt:0,lastGoodLandmarksAt:0,lastDrawAt:0,clearAfterDraw:false,trackerState:'not started'};
+$$('.build-badge').forEach(el=>el.textContent=APP_VERSION);
+if(overlayDebugEnabled)scanDebugPanel.classList.remove('hidden');
 
 const STEPS=[
  {id:'front',label:'Front',title:'Look straight ahead',detail:'Face the camera naturally. The scanner adapts to your own face shape and turns green when your neutral front pose is stable.',poseText:'Face the camera naturally',check:m=>m.frontalScore>=.52&&Math.abs(m.roll)<.18},
@@ -581,7 +587,7 @@ function setScreen(name){
 }
 function renderProgress(){scanProgress.innerHTML=STEPS.map((_,i)=>`<span class="progress-dot ${i<currentStepIndex?'done':''} ${i===currentStepIndex?'current':''}"></span>`).join('');}
 function updateStepCopy(){poseLockBuzzed=false;const step=STEPS[currentStepIndex];stepKicker.textContent=`${currentStepIndex+1} of ${STEPS.length} · ${step.label.toUpperCase()}`;stepTitle.textContent=step.title;stepDetail.textContent=step.detail;renderProgress();faceGuide.dataset.pose=step.id;faceGuide.className=`face-guide warn pose-${step.id}`;}
-function setTrackerState(text,state='warn'){trackerChip.textContent=text;trackerChip.className=`tracker-chip ${state}`;const pose=STEPS[currentStepIndex]?.id||'front';faceGuide.className=`face-guide ${state} pose-${pose}`;}
+function setTrackerState(text,state='warn'){overlayDiagnostics.trackerState=`${state}: ${text}`;trackerChip.textContent=text;trackerChip.className=`tracker-chip ${state}`;const pose=STEPS[currentStepIndex]?.id||'front';faceGuide.className=`face-guide ${state} pose-${pose}`;}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
 function uiHaptic(pattern=7){try{navigator.vibrate?.(pattern);}catch(_e){}}
 function uiClickSound(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;if(!uiAudioCtx)uiAudioCtx=new AC();if(uiAudioCtx.state==='suspended')uiAudioCtx.resume().catch(()=>{});const now=uiAudioCtx.currentTime,osc=uiAudioCtx.createOscillator(),gain=uiAudioCtx.createGain();osc.type='sine';osc.frequency.setValueAtTime(610,now);osc.frequency.exponentialRampToValueAtTime(430,now+.022);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.018,now+.003);gain.gain.exponentialRampToValueAtTime(.0001,now+.026);osc.connect(gain);gain.connect(uiAudioCtx.destination);osc.start(now);osc.stop(now+.03);}catch(_e){}}
@@ -635,7 +641,7 @@ async function createTracker(delegate='CPU'){
  // successfully locking the face in Live Map on this device.
  const options={runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.26,minFacePresenceConfidence:.24,minTrackingConfidence:.24,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:true,baseOptions:{modelAssetPath:MODEL_URL,delegate}};
  try{faceLandmarker?.close?.();}catch(_e){}
- faceLandmarker=await FaceLandmarker.createFromOptions(vision,options);trackerDelegate=delegate;engineBadge.textContent=`Face scan • precision ${delegate.toLowerCase()} • v31`;return faceLandmarker;
+ faceLandmarker=await FaceLandmarker.createFromOptions(vision,options);trackerDelegate=delegate;engineBadge.textContent=`Face scan • precision ${delegate.toLowerCase()} • ${APP_VERSION}`;return faceLandmarker;
 }
 async function ensureTracker(){
  if(faceLandmarker)return faceLandmarker;if(trackerPromise)return trackerPromise;
@@ -662,9 +668,10 @@ async function startCamera(){
 }
 function showCameraError(title,text){cameraErrorTitle.textContent=title;cameraErrorText.textContent=text;cameraError.classList.remove('hidden');setTrackerState('Camera unavailable','bad');}
 function stopCamera(){running=false;if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
-function createOverlayDiagnostics(){const rect=overlay.getBoundingClientRect(),overlayStyle=getComputedStyle(overlay),shadeStyle=getComputedStyle($('.camera-shade'));return{showMesh,hasLandmarks:overlayDiagnostics.landmarkCount>0,landmarkCount:overlayDiagnostics.landmarkCount,canvasWidth:overlay.width,canvasHeight:overlay.height,cssWidth:+rect.width.toFixed(1),cssHeight:+rect.height.toFixed(1),devicePixelRatio:window.devicePixelRatio||1,overlayZIndex:overlayStyle.zIndex,cameraShadeZIndex:shadeStyle.zIndex,drawFaceMapInvocations:overlayDiagnostics.drawInvocations,pathsDrawn:overlayDiagnostics.pathsDrawn,canvasClearEvents:overlayDiagnostics.clearEvents,lastClearReason:overlayDiagnostics.lastClearReason,inferenceErrors:overlayDiagnostics.inferenceErrors};}
-function verifyOverlayPresentation(now=performance.now()){if(!overlayDebugEnabled||now-overlayDiagnostics.lastReportAt<2000)return;overlayDiagnostics.lastReportAt=now;console.info('Scanner overlay diagnostics',createOverlayDiagnostics());}
-function recordCanvasClear(reason){overlayDiagnostics.clearEvents++;overlayDiagnostics.lastClearReason=reason;}
+function createOverlayDiagnostics(now=performance.now()){const rect=overlay.getBoundingClientRect(),overlayStyle=getComputedStyle(overlay),shadeStyle=getComputedStyle($('.camera-shade')),videoStyle=getComputedStyle(video),stageRect=cameraStage.getBoundingClientRect();return{showMesh,facesDetected:overlayDiagnostics.facesDetected,landmarkCount:overlayDiagnostics.landmarkCount,drawFaceMapCalls:overlayDiagnostics.drawInvocations,pathsDrawn:overlayDiagnostics.pathsDrawn,canvasSize:`${overlay.width} × ${overlay.height}`,overlayCssSize:`${rect.width.toFixed(1)} × ${rect.height.toFixed(1)}`,overlayZIndex:overlayStyle.zIndex,overlayOpacityVisibility:`${overlayStyle.opacity} / ${overlayStyle.visibility} / ${overlayStyle.display}`,cameraShadeZIndex:shadeStyle.zIndex,lastCanvasClearReason:overlayDiagnostics.lastClearReason,canvasClearCount:overlayDiagnostics.clearEvents,inferenceErrorCount:overlayDiagnostics.inferenceErrors,msSinceLastGoodLandmarks:overlayDiagnostics.lastGoodLandmarksAt?Math.round(now-overlayDiagnostics.lastGoodLandmarksAt):'never',trackerState:overlayDiagnostics.trackerState,currentScanPose:STEPS[currentStepIndex]?.id||'unknown',clearAfterDraw:overlayDiagnostics.clearAfterDraw,coordinateConversion:`mirror=${currentFacingMode==='user'}; objectFit=${videoStyle.objectFit}; zoom=${visualZoom.toFixed(2)}; video=${video.videoWidth}×${video.videoHeight}; stage=${stageRect.width.toFixed(1)}×${stageRect.height.toFixed(1)}; dpr=${(window.devicePixelRatio||1).toFixed(2)}`};}
+function debugFailureCategory(d){if(d.inferenceErrorCount)return'I: inference error (see console)';if(!d.facesDetected)return'A: MediaPipe returns no face';if(!d.landmarkCount)return'B: face exists but no landmarks';if(!d.drawFaceMapCalls)return'C: drawFaceMap not called';if(!d.pathsDrawn)return'D: drawFaceMap drew zero paths';if(d.clearAfterDraw)return'H: canvas cleared after drawing';if(d.overlayOpacityVisibility.startsWith('0 ')||d.overlayOpacityVisibility.includes('/ hidden')||d.overlayOpacityVisibility.endsWith('/ none'))return'F: overlay hidden by CSS';if(!d.showMesh)return'G: showMesh is false';return'E/F/I: use markers to distinguish coordinates/visibility';}
+function verifyOverlayPresentation(now=performance.now()){if(!overlayDebugEnabled||now-overlayDiagnostics.lastReportAt<250)return;overlayDiagnostics.lastReportAt=now;const d=createOverlayDiagnostics(now),labels={showMesh:'showMesh',facesDetected:'faces detected',landmarkCount:'landmark count',drawFaceMapCalls:'drawFaceMap call count',pathsDrawn:'paths drawn',canvasSize:'overlay canvas width/height',overlayCssSize:'overlay CSS width/height',overlayZIndex:'overlay z-index',overlayOpacityVisibility:'overlay opacity/visibility',cameraShadeZIndex:'camera-shade z-index',lastCanvasClearReason:'last canvas-clear reason',canvasClearCount:'canvas-clear count',inferenceErrorCount:'inference-error count',msSinceLastGoodLandmarks:'milliseconds since last good landmarks',trackerState:'tracker state',currentScanPose:'current scan pose'};scanDebugPanel.textContent=`failure check: ${debugFailureCategory(d)}\n`+Object.entries(labels).map(([key,label])=>`${label}: ${d[key]}`).join('\n')+`\nclear after draw: ${d.clearAfterDraw}\nconversion: ${d.coordinateConversion}`;console.info('Scanner overlay diagnostics',d);}
+function recordCanvasClear(reason){const now=performance.now();overlayDiagnostics.clearEvents++;overlayDiagnostics.lastClearReason=reason;overlayDiagnostics.clearAfterDraw=overlayDiagnostics.lastDrawAt>0&&now-overlayDiagnostics.lastDrawAt<100;}
 function clearScannerOverlay(reason){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear(reason);}
 function resizeOverlay(){const rect=overlay.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;recordCanvasClear('canvas-resize');}return{w,h,dpr};}
 function displayPoint(p){const sw=cameraStage.clientWidth||1,sh=cameraStage.clientHeight||1,vw=video.videoWidth||sw,vh=video.videoHeight||sh,baseScale=Math.max(sw/vw,sh/vh),scale=baseScale*visualZoom,rw=vw*scale,rh=vh*scale,ox=(sw-rw)/2,oy=(sh-rh)/2,baseX=ox+p.x*rw,x=currentFacingMode==='user'?sw-baseX:baseX;return{x,y:oy+p.y*rh,z:p.z};}
@@ -713,7 +720,8 @@ function smoothScanLandmarks(lm){
 function scanPoints(lm,indexes){return indexes.map(i=>P(lm,i));}
 function drawSmoothPolyline(points,stroke,width=2,closed=false,alpha=1){if(!points?.length)return;ctx.save();ctx.globalAlpha=alpha;traceSmoothPath(ctx,points,closed);ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();ctx.restore();overlayDiagnostics.pathsDrawn++;}
 function drawPolyline(lm,indexes,stroke,width=2){ctx.beginPath();indexes.forEach((idx,i)=>{const p=P(lm,idx);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();}
-function drawScannerContour(lm,indexes,{color='rgba(240,207,131,.92)',width=2.2,closed=false,glow='rgba(240,207,131,.28)',alpha=1}={}){const pts=scanPoints(lm,indexes);if(!pts.length)return;ctx.save();ctx.globalAlpha=alpha;ctx.shadowColor=glow;ctx.shadowBlur=width*3.8;drawSmoothPolyline(pts,color,width,closed,1);ctx.restore();}
+function drawScannerContour(lm,indexes,{color='rgba(240,207,131,.92)',width=2.2,closed=false,glow='rgba(240,207,131,.28)',alpha=1}={}){const pts=scanPoints(lm,indexes);if(!pts.length)return;const debugWidth=overlayDebugEnabled?Math.max(4,width*2):width;ctx.save();ctx.globalAlpha=overlayDebugEnabled?1:alpha;ctx.globalCompositeOperation='source-over';ctx.shadowColor=glow;ctx.shadowBlur=debugWidth*3.8;drawSmoothPolyline(pts,color,debugWidth,closed,1);ctx.restore();}
+function drawDebugLandmarkMarkers(lm){if(!overlayDebugEnabled)return;[{index:1,color:'#ff00cc',label:'NOSE'},{index:33,color:'#00ffff',label:'EYE'}].forEach(({index,color,label})=>{const p=P(lm,index);ctx.save();ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;ctx.beginPath();ctx.arc(p.x,p.y,9,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#000';ctx.stroke();ctx.fillStyle=color;ctx.font='bold 12px sans-serif';ctx.fillText(label,p.x+12,p.y-10);ctx.restore();});}
 function drawScannerDots(lm,indexes,color='rgba(255,247,227,.94)',r=1.7){indexes.forEach(idx=>{const p=P(lm,idx);ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();});}
 const FACE_OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10];
 const LOWER_JAW=[234,93,132,58,172,136,150,149,176,148,152,377,400,378,379,365,397,288,361,323,454];
@@ -749,7 +757,7 @@ function drawDerivedNeck(lm){
  ctx.restore();
 }
 function drawFaceMap(lm){
- overlayDiagnostics.drawInvocations++;overlayDiagnostics.landmarkCount=lm?.length||0;const{w,h,dpr}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear('redraw');if(!showMesh||!lm?.length){verifyOverlayPresentation();return;}ctx.save();ctx.scale(dpr,dpr);const step=STEPS[currentStepIndex]?.id||'front';
+ overlayDiagnostics.drawInvocations++;overlayDiagnostics.landmarkCount=lm?.length||0;const{w,h,dpr}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear('redraw-before-draw');if(!showMesh||!lm?.length){verifyOverlayPresentation();return;}ctx.save();ctx.globalCompositeOperation='source-over';ctx.scale(dpr,dpr);const step=STEPS[currentStepIndex]?.id||'front';
  const gold='rgba(240,207,131,.96)', goldSoft='rgba(240,207,131,.60)', ice='rgba(146,204,255,.86)', mint='rgba(137,232,188,.82)', pearl='rgba(255,244,219,.96)';
  if(step==='front'){
   drawScannerContour(lm,FACE_OVAL,{color:'rgba(239,210,144,.92)',width:2.35,closed:true,glow:'rgba(240,207,131,.24)'});
@@ -782,7 +790,7 @@ function drawFaceMap(lm){
   drawDerivedNeck(lm);
   drawScannerDots(lm,[61,291,17,152,172,397,149,378],pearl,1.75);
  }
- ctx.restore();verifyOverlayPresentation();
+ drawDebugLandmarkMarkers(lm);ctx.restore();overlayDiagnostics.lastDrawAt=performance.now();overlayDiagnostics.clearAfterDraw=false;verifyOverlayPresentation();
 }
 function getMatrix(result){const m=result?.facialTransformationMatrixes?.[0];if(!m)return null;if(Array.isArray(m))return[...m];if(m.data)return Array.from(m.data);return null;}
 function pushFrame(lm,metrics,result,quality){frameBuffer.push({ts:performance.now(),landmarks:lm.map(p=>({x:p.x,y:p.y,z:p.z})),metrics:{...metrics},matrix:getMatrix(result),good:quality.ok});if(frameBuffer.length>18)frameBuffer.shift();}
@@ -792,9 +800,9 @@ function loop(){
   lastVideoTime=video.currentTime;lastInferenceAt=now;
   if(faceLandmarker){
    try{
-    const result=faceLandmarker.detectForVideo(video,now);inferenceErrors=0;overlayDiagnostics.inferenceErrors=0;lastResult=result;const lm=result.faceLandmarks?.[0];overlayDiagnostics.landmarkCount=lm?.length||0;
+     const result=faceLandmarker.detectForVideo(video,now);inferenceErrors=0;overlayDiagnostics.inferenceErrors=0;lastResult=result;overlayDiagnostics.facesDetected=result.faceLandmarks?.length||0;const lm=result.faceLandmarks?.[0];overlayDiagnostics.landmarkCount=lm?.length||0;
     if(lm){
-     const filteredLm=smoothScanLandmarks(lm);lastMetrics=computeMetrics(filteredLm);const q=qualityFor(lastMetrics);pushFrame(filteredLm,lastMetrics,result,q);drawFaceMap(filteredLm);scanSweep.classList.add('active');
+      overlayDiagnostics.lastGoodLandmarksAt=now;const filteredLm=smoothScanLandmarks(lm);lastMetrics=computeMetrics(filteredLm);const q=qualityFor(lastMetrics);pushFrame(filteredLm,lastMetrics,result,q);drawFaceMap(filteredLm);scanSweep.classList.add('active');
      scanTech.textContent=currentStepIndex===3?'478-point underside map • throat • jaw':currentStepIndex===0?'478-point face map • align detected mesh inside oval':`478-point profile map • ${lastMetrics.profileCueCount}/4 pose cues`;
      stableFrames=q.ok?Math.min(stableFrames+1,24):0;const ready=q.ok&&stableFrames>=4;scannerScreen.classList.toggle('pose-ready',ready);if(ready)poseLockFeedback();setTrackerState(ready?'✓ Pose locked • capture ready':q.reason,ready?'good':q.state);shutterBtn.classList.toggle('ready',ready);shutterLabel.textContent=ready?'Capture':(q.ok?'Hold still':'Position');
     }else{
@@ -811,8 +819,8 @@ function capturePhoto(){const c=document.createElement('canvas');c.width=video.v
 function takeCapture(){if(!lastMetrics||!lastResult?.faceLandmarks?.[0])return showToast('I need to see your face first.');const q=qualityFor(lastMetrics);if(!q.ok||stableFrames<4)return showToast(q.reason);const good=frameBuffer.filter(s=>s.good).slice(-12);if(good.length<4)return showToast('Hold still for one more moment.');const photo=capturePhoto(),step=STEPS[currentStepIndex],record={id:step.id,label:step.label,capturedAt:new Date().toISOString(),image:photo.image,imageWidth:photo.width,imageHeight:photo.height,landmarks:stabilizedLandmarks(good),sourceFrameCount:good.length,metrics:{...lastMetrics},transformationMatrix:getMatrix(lastResult),mirrored:currentFacingMode==='user'};captures.push(record);uiHaptic([28,35,28]);if(step.id==='front')frontCalibration={rawPitch:lastMetrics.rawPitch,rawYaw:lastMetrics.rawYaw,eyeCompression:lastMetrics.eyeCompression,cheekBalance:lastMetrics.cheekBalance,cheekDepthSigned:lastMetrics.cheekDepthSigned,faceAspect:lastMetrics.faceAspect,lowerFaceRatio:lastMetrics.lowerFaceRatio,noseChinRatio:lastMetrics.noseChinRatio,verticalDepth:lastMetrics.verticalDepth,neutralRoll:lastMetrics.roll};flash.classList.remove('go');void flash.offsetWidth;flash.classList.add('go');lastThumb.innerHTML=`<img class="${record.mirrored?'mirrored':''}" src="${record.image}" alt="Last capture" />`;stableFrames=0;frameBuffer=[];scanSmoothedLm=null;scanFilterState=null;scannerScreen.classList.remove('pose-ready');if(currentStepIndex<STEPS.length-1){currentStepIndex++;updateStepCopy();setTrackerState('Move into position for the next angle','warn');shutterBtn.classList.remove('ready');}else setTimeout(finishScan,320);}
 function buildScanModel(){const front=captures.find(c=>c.id==='front'),right=captures.find(c=>c.id==='right-profile'),left=captures.find(c=>c.id==='left-profile'),chin=captures.find(c=>c.id==='chin-up');if(!front)return null;const avgProfile=((Math.abs(right?.metrics?.yaw||0)+Math.abs(left?.metrics?.yaw||0))/Math.max(1,(right?1:0)+(left?1:0)));const lift=Math.abs(chin?.metrics?.pitchDelta||-.04),neckDrop=clamp(.17+lift*1.08,.18,.30),throatDrop=clamp(.225+lift*.62,.225,.31);return{landmarkCount:front.landmarks.length,profileTurn:avgProfile,neckDrop,throatDrop,chinLift:lift,angles:{front:front.landmarks,right:right?.landmarks||null,left:left?.landmarks||null,chin:chin?.landmarks||null}};}
 function finishScan(){stopCamera();scanModel=buildScanModel();scanStatusPill.textContent='Scan ready';captureGrid.innerHTML=captures.map(c=>`<div class="capture-card"><img class="${c.mirrored?'mirrored':''}" src="${c.image}" alt="${c.label}"><div class="capture-label">${c.label}</div></div>`).join('');const total=captures.reduce((n,c)=>n+c.sourceFrameCount,0);$('#accuracyTitle').textContent=`${captures.length} angles · ${captures[0]?.landmarks?.length||0} landmarks each`;$('#accuracyText').textContent=`The four saved meshes were stabilized from ${total} recent tracked frames, including jaw, chin and derived throat-center geometry for neckline placement. They stay available for preview masking and live-map registration.`;setScreen('review');}
-function resetScan(){captures=[];currentStepIndex=0;frontCalibration=null;frameBuffer=[];stableFrames=0;scanModel=null;scanSmoothedLm=null;scanFilterState=null;scanFaceLightOn=false;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');lastThumb.textContent='↺';scanStatusPill.textContent='No scan';aiPreviewCache.clear();updateStepCopy();updateScanLightUI();}
-async function beginScan({reset=true}={}){if(reset)resetScan();setScreen('scanner');updateStepCopy();setTrackerState('Starting camera…','warn');applyVideoPresentation();startCamera();}
+function resetScan(){showMesh=true;captures=[];currentStepIndex=0;frontCalibration=null;frameBuffer=[];stableFrames=0;scanModel=null;scanSmoothedLm=null;scanFilterState=null;scanFaceLightOn=false;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');lastThumb.textContent='↺';scanStatusPill.textContent='No scan';aiPreviewCache.clear();updateStepCopy();updateScanLightUI();}
+async function beginScan({reset=true}={}){showMesh=true;if(reset)resetScan();setScreen('scanner');updateStepCopy();setTrackerState('Starting camera…','warn');applyVideoPresentation();startCamera();}
 async function switchCamera(){if(scanTorchOn)await setScanTorch(false);currentFacingMode=currentFacingMode==='user'?'environment':'user';scanTorchOn=false;scanTorchSupported=false;applyVideoPresentation();showToast(currentFacingMode==='user'?'Front camera • Flashlight uses screen light':'Rear camera • Flashlight uses camera torch when available');if(!scannerScreen.classList.contains('hidden'))await startCamera();}
 function adjustScanZoom(delta){visualZoom=clamp(visualZoom+delta,.72,1.25);applyVideoPresentation();}
 
