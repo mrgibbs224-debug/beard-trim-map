@@ -311,12 +311,15 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
 @media(max-width:430px){.compact-scan-tools{left:14px!important;right:14px!important}.scan-quick-left{gap:7px}.scan-light-dock-btn{width:64px!important;min-width:64px}}
 .version-badge{display:inline-flex;align-items:center;justify-content:center;margin-left:7px;padding:2px 6px;border:1px solid rgba(217,173,89,.55);border-radius:999px;background:rgba(217,173,89,.10);color:#f3d894;font-family:Arial,sans-serif;font-size:9px;font-weight:950;letter-spacing:.06em;line-height:1.2;vertical-align:middle;text-shadow:none;white-space:nowrap}
 .scanner-brand .version-badge,.live-map-brand .version-badge{transform:translateY(-1px)}
+
+.tracker-retry-btn{margin-top:8px;border:1px solid rgba(255,120,120,.55);background:rgba(38,8,8,.82);color:#ffd8d8;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:900;letter-spacing:.02em;box-shadow:0 8px 24px rgba(0,0,0,.28);cursor:pointer}
+.tracker-retry-btn.hidden{display:none!important}
 </style>
 </head>
 <body>
 <div class="app">
   <header id="mainTopbar" class="topbar">
-    <div class="brand"><div class="brandmark">✦</div><span>BEARD TRIM MAP <span class="version-badge">v24</span></span></div>
+    <div class="brand"><div class="brandmark">✦</div><span>BEARD TRIM MAP <span class="version-badge">v25</span></span></div>
     <div class="pill" id="scanStatusPill">No scan</div>
   </header>
 
@@ -357,7 +360,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
       <div class="scan-header">
         <div class="scan-head-row">
           <button id="closeScanBtn" class="icon-btn" type="button" aria-label="Close scanner">×</button>
-          <div class="scan-center"><div class="scanner-brand">BEARD <span>TRIM MAP</span><span class="version-badge">v24</span></div><div id="scanProgress" class="scan-progress"></div><div id="engineBadge" class="engine-badge">Face scanner • CPU mode</div></div>
+          <div class="scan-center"><div class="scanner-brand">BEARD <span>TRIM MAP</span><span class="version-badge">v25</span></div><div id="scanProgress" class="scan-progress"></div><div id="engineBadge" class="engine-badge">Face scanner • CPU mode</div></div>
           <button id="meshToggleBtn" class="icon-btn" type="button" aria-label="Toggle face map">⌁</button>
         </div>
         <div class="step-copy">
@@ -368,6 +371,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
             <div id="trackerChip" class="tracker-chip warn">Starting camera…</div>
             <div id="scanTech" class="scan-tech">Mapping face contour</div>
           </div>
+          <button id="trackerRetryBtn" class="tracker-retry-btn hidden" type="button">↻ Retry face tracker</button>
         </div>
       </div>
 
@@ -464,7 +468,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
         <div class="live-map-head">
           <button id="closeLiveMapBtn" class="icon-btn" type="button" aria-label="Close live map">×</button>
           <div class="live-map-center">
-            <div class="live-map-brand">BEARD <span>TRIM MAP</span><span class="version-badge">v24</span></div>
+            <div class="live-map-brand">BEARD <span>TRIM MAP</span><span class="version-badge">v25</span></div>
             <div id="liveStyleName" class="live-map-style">Short Boxed Beard</div>
             <div class="live-map-sub">ContourLock AR • scan-calibrated stencil</div>
           </div>
@@ -526,7 +530,7 @@ const $$ = s => [...document.querySelectorAll(s)];
 
 const homeScreen=$("#homeScreen"), scannerScreen=$("#scannerScreen"), reviewScreen=$("#reviewScreen"), stylesScreen=$("#stylesScreen"), liveMapScreen=$("#liveMapScreen"), mainTopbar=$("#mainTopbar"), bottomNav=$("#bottomNav");
 const scanStatusPill=$("#scanStatusPill"), video=$("#video"), overlay=$("#overlay"), ctx=overlay.getContext("2d"), faceGuide=$("#faceGuide"), trackerChip=$("#trackerChip"), scanProgress=$("#scanProgress"), stepKicker=$("#stepKicker"), stepTitle=$("#stepTitle"), stepDetail=$("#stepDetail"), shutterBtn=$("#shutterBtn"), shutterLabel=$("#shutterLabel"), lastThumb=$("#lastThumb"), flash=$("#flash"), cameraError=$("#cameraError"), cameraErrorTitle=$("#cameraErrorTitle"), cameraErrorText=$("#cameraErrorText"), captureGrid=$("#captureGrid");
-const cameraStage=$(".camera-stage"), cameraToggleBtn=$("#cameraToggleBtn"), cameraLabel=$("#cameraLabel"), zoomOutBtn=$("#zoomOutBtn"), zoomInBtn=$("#zoomInBtn"), zoomReadout=$("#zoomReadout"), scanSweep=$("#scanSweep"), scanTech=$("#scanTech"), engineBadge=$("#engineBadge"), scanFaceLight=$("#scanFaceLight"), scanFaceLightBtn=$("#scanFaceLightBtn"), scanTorchBtn=$("#scanTorchBtn");
+const cameraStage=$(".camera-stage"), cameraToggleBtn=$("#cameraToggleBtn"), cameraLabel=$("#cameraLabel"), zoomOutBtn=$("#zoomOutBtn"), zoomInBtn=$("#zoomInBtn"), zoomReadout=$("#zoomReadout"), scanSweep=$("#scanSweep"), scanTech=$("#scanTech"), engineBadge=$("#engineBadge"), scanFaceLight=$("#scanFaceLight"), scanFaceLightBtn=$("#scanFaceLightBtn"), scanTorchBtn=$("#scanTorchBtn"), trackerRetryBtn=$("#trackerRetryBtn");
 const previewImage=$("#previewImage"), styleSections=$("#styleSections"), selectedStyleMeta=$("#selectedStyleMeta"), selectedStyleName=$("#selectedStyleName"), selectedStyleCopy=$("#selectedStyleCopy"), previewModeLabel=$("#previewModeLabel"), photoModeBtn=$("#photoModeBtn"), liveModeBtn=$("#liveModeBtn"), generatePreviewBtn=$("#generatePreviewBtn"), aiPreviewSpinner=$("#aiPreviewSpinner"), aiPreviewCopy=$("#aiPreviewCopy"), aiPreviewLayer=$("#aiPreviewLayer"), toast=$("#toast");
 const liveMapStage=$("#liveMapStage"), liveVideo=$("#liveVideo"), liveFaceLight=$("#liveFaceLight"), liveMapCanvas=$("#liveMapCanvas"), liveCtx=liveMapCanvas.getContext("2d"), liveMapStatus=$("#liveMapStatus"), liveStyleName=$("#liveStyleName"), liveStepTitle=$("#liveStepTitle"), liveStepCopy=$("#liveStepCopy"), liveGuardBadge=$("#liveGuardBadge"), liveProgress=$("#liveProgress"), liveSolidLegend=$("#liveSolidLegend"), liveFadeLegend=$("#liveFadeLegend"), liveZoomLabel=$("#liveZoomLabel"), closeLiveMapBtn=$("#closeLiveMapBtn"), liveCameraToggleBtn=$("#liveCameraToggleBtn"), liveZoomInBtn=$("#liveZoomInBtn"), liveZoomOutBtn=$("#liveZoomOutBtn"), liveFaceLightBtn=$("#liveFaceLightBtn"), liveTorchBtn=$("#liveTorchBtn"), prevLiveBtn=$("#prevLiveBtn"), doneLiveBtn=$("#doneLiveBtn"), resetLiveBtn=$("#resetLiveBtn"), liveStepMinimizeBtn=$("#liveStepMinimizeBtn"), liveStepRestoreBtn=$("#liveStepRestoreBtn");
 
@@ -536,6 +540,9 @@ let liveStream=null, liveRunning=false, liveRafId=null, liveLastVideoTime=-1, li
 let liveLandmarker=null, liveTrackerPromise=null, liveFilterState=null, liveLastGoodLm=null, livePrevGoodLm=null, liveLastGoodAt=0, livePrevGoodAt=0, liveViewMode='front', liveInferenceInterval=48, liveTrackingState='paused', liveAffineState=null, liveFaceLightOn=false, liveTorchOn=false, liveTorchSupported=false;
 let previewAbort=null, previewTimer=null, poseLockBuzzed=false, uiAudioCtx=null;
 const aiPreviewCache=new Map();
+let trackerPaused=false;
+const compatCanvas=document.createElement('canvas');
+const compatCtx=compatCanvas.getContext('2d',{alpha:false,willReadFrequently:true});
 const isAndroidBrowser=/Android|SamsungBrowser/i.test(navigator.userAgent);
 
 const STEPS=[
@@ -626,7 +633,7 @@ async function createTracker(delegate='CPU',mode='VIDEO',matrices=true){
  try{faceLandmarker?.close?.();}catch(_e){}
  faceLandmarker=await FaceLandmarker.createFromOptions(vision,options);
  trackerDelegate=delegate;trackerMode=mode;lastTrackerTimestamp=-1;noFaceFrames=0;
- engineBadge.textContent=mode==='IMAGE'?`Face scan • compatibility mode • v24`:`Face scan • ${delegate.toLowerCase()} mode • v24`;
+ engineBadge.textContent=mode==='IMAGE'?`Face scan • compatibility mode • v25`:`Face scan • ${delegate.toLowerCase()} mode • v25`;
  return faceLandmarker;
 }
 async function ensureTracker(){
@@ -635,29 +642,50 @@ async function ensureTracker(){
  return trackerPromise;
 }
 function detectScanFrame(now){
- if(!faceLandmarker)return null;
- if(trackerMode==='IMAGE')return faceLandmarker.detect(video);
+ if(!faceLandmarker||trackerPaused)return null;
+ if(trackerMode==='IMAGE'){
+  const vw=video.videoWidth||0,vh=video.videoHeight||0;if(!vw||!vh)return null;
+  const maxSide=720,scale=Math.min(1,maxSide/Math.max(vw,vh));
+  const cw=Math.max(160,Math.round(vw*scale)),ch=Math.max(160,Math.round(vh*scale));
+  if(compatCanvas.width!==cw||compatCanvas.height!==ch){compatCanvas.width=cw;compatCanvas.height=ch;}
+  compatCtx.drawImage(video,0,0,cw,ch);
+  return faceLandmarker.detect(compatCanvas);
+ }
  const ts=Math.max(lastTrackerTimestamp+1,now);lastTrackerTimestamp=ts;
  return faceLandmarker.detectForVideo(video,ts);
 }
 async function recoverTracker(err){
- if(trackerRecovering)return;trackerRecovering=true;stableFrames=0;scanSweep.classList.remove('active');scannerScreen.classList.remove('pose-ready');
+ if(trackerRecovering||trackerPaused)return;trackerRecovering=true;stableFrames=0;scanSweep.classList.remove('active');scannerScreen.classList.remove('pose-ready');
  console.error('Face tracker inference error',err);
  try{
   trackerPromise=null;
   if(trackerMode!=='IMAGE'){
    setTrackerState('Switching to compatibility face tracking…','warn');
-   await createTracker('CPU','IMAGE',false);imageFallbackRestarts=0;inferenceErrors=0;
+   await createTracker('CPU','IMAGE',false);imageFallbackRestarts=0;inferenceErrors=0;trackerPaused=false;trackerRetryBtn.classList.add('hidden');
    setTrackerState('Compatibility tracker ready • hold still','warn');
-  }else if(imageFallbackRestarts<1){
+  }else if(imageFallbackRestarts<2){
    imageFallbackRestarts++;setTrackerState('Restarting compatibility tracker…','warn');
-   await createTracker('CPU','IMAGE',false);inferenceErrors=0;
+   await createTracker('CPU','IMAGE',false);inferenceErrors=0;trackerPaused=false;trackerRetryBtn.classList.add('hidden');
    setTrackerState('Face tracker ready • look at camera','warn');
   }else{
-   setTrackerState('Face tracker paused • tap ↻ to retry','bad');
+   trackerPaused=true;trackerRetryBtn.classList.remove('hidden');
+   setTrackerState('Face tracker paused • use Retry face tracker','bad');
   }
- }catch(e){console.error('Face tracker recovery failed',e);setTrackerState('Face tracker needs a restart','bad');}
+ }catch(e){console.error('Face tracker recovery failed',e);trackerPaused=true;trackerRetryBtn.classList.remove('hidden');setTrackerState('Face tracker needs a restart','bad');}
  finally{trackerRecovering=false;}
+}
+
+async function manualRetryTracker(){
+ if(trackerRecovering)return;trackerRecovering=true;trackerPaused=false;trackerRetryBtn.classList.add('hidden');stableFrames=0;inferenceErrors=0;imageFallbackRestarts=0;
+ setTrackerState('Restarting face tracker…','warn');
+ try{
+  trackerPromise=null;try{faceLandmarker?.close?.();}catch(_e){}faceLandmarker=null;
+  await createTracker('CPU','IMAGE',false);
+  lastVideoTime=-1;lastInferenceAt=0;noFaceFrames=0;
+  setTrackerState('Tracker restarted • hold still','warn');
+ }catch(err){
+  console.error('Manual tracker restart failed',err);trackerPaused=true;trackerRetryBtn.classList.remove('hidden');setTrackerState('Retry failed • tap again','bad');
+ }finally{trackerRecovering=false;}
 }
 
 async function createLiveTracker(delegate='CPU'){
@@ -671,10 +699,10 @@ async function ensureLiveTracker(){
 
 async function startCamera(){
  cameraError.classList.add('hidden'); if(!window.isSecureContext)return showCameraError('Secure connection required','Camera access needs HTTPS.'); if(!navigator.mediaDevices?.getUserMedia)return showCameraError('Camera not supported','This browser does not expose camera access.');
- try{if(stream)stopCamera();applyVideoPresentation();setTrackerState('Requesting camera…','warn');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:currentFacingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}},audio:false});video.srcObject=stream;await new Promise(resolve=>{if(video.readyState>=1)return resolve();video.addEventListener('loadedmetadata',resolve,{once:true});});await video.play();running=true;lastVideoTime=-1;lastInferenceAt=0;lastTrackerTimestamp=-1;inferenceErrors=0;noFaceFrames=0;stableFrames=0;frameBuffer=[];applyVideoPresentation();refreshScanTorchSupport();await ensureTracker();loop();}catch(err){let title='Camera unavailable',text='The camera could not be opened.';if(err?.name==='NotAllowedError'||err?.name==='SecurityError'){title='Camera permission blocked';text='Allow camera permission for this site, then retry.';}else if(err?.name==='NotReadableError'){title='Camera is busy';text='Another app may be using the camera.';}showCameraError(title,text);}
+ try{if(stream)stopCamera();applyVideoPresentation();setTrackerState('Requesting camera…','warn');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:currentFacingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}},audio:false});video.srcObject=stream;await new Promise(resolve=>{if(video.readyState>=1)return resolve();video.addEventListener('loadedmetadata',resolve,{once:true});});await video.play();running=true;trackerPaused=false;trackerRetryBtn.classList.add('hidden');lastVideoTime=-1;lastInferenceAt=0;lastTrackerTimestamp=-1;inferenceErrors=0;noFaceFrames=0;stableFrames=0;frameBuffer=[];applyVideoPresentation();refreshScanTorchSupport();await ensureTracker();loop();}catch(err){let title='Camera unavailable',text='The camera could not be opened.';if(err?.name==='NotAllowedError'||err?.name==='SecurityError'){title='Camera permission blocked';text='Allow camera permission for this site, then retry.';}else if(err?.name==='NotReadableError'){title='Camera is busy';text='Another app may be using the camera.';}showCameraError(title,text);}
 }
 function showCameraError(title,text){cameraErrorTitle.textContent=title;cameraErrorText.textContent=text;cameraError.classList.remove('hidden');setTrackerState('Camera unavailable','bad');}
-function stopCamera(){running=false;if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
+function stopCamera(){running=false;if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;trackerPaused=false;trackerRetryBtn.classList.add('hidden');scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
 function resizeOverlay(){const rect=overlay.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;}return{w,h,dpr};}
 function displayPoint(p){const sw=cameraStage.clientWidth||1,sh=cameraStage.clientHeight||1,vw=video.videoWidth||sw,vh=video.videoHeight||sh,baseScale=Math.max(sw/vw,sh/vh),scale=baseScale*visualZoom,rw=vw*scale,rh=vh*scale,ox=(sw-rw)/2,oy=(sh-rh)/2,baseX=ox+p.x*rw,x=currentFacingMode==='user'?sw-baseX:baseX;return{x,y:oy+p.y*rh,z:p.z};}
 function P(lm,index){return displayPoint(lm[index]);}
@@ -789,7 +817,7 @@ function drawFaceMap(lm){
 }
 function getMatrix(result){const m=result?.facialTransformationMatrixes?.[0];if(!m)return null;if(Array.isArray(m))return[...m];if(m.data)return Array.from(m.data);return null;}
 function pushFrame(lm,metrics,result,quality){frameBuffer.push({ts:performance.now(),landmarks:lm.map(p=>({x:p.x,y:p.y,z:p.z})),metrics:{...metrics},matrix:getMatrix(result),good:quality.ok});if(frameBuffer.length>18)frameBuffer.shift();}
-function loop(){if(!running)return;const now=performance.now();if(video.readyState>=2&&video.currentTime!==lastVideoTime&&now-lastInferenceAt>=48&&!trackerRecovering){lastVideoTime=video.currentTime;lastInferenceAt=now;if(faceLandmarker){try{const result=detectScanFrame(now);inferenceErrors=0;lastResult=result;const lm=result?.faceLandmarks?.[0];if(lm){noFaceFrames=0;const filteredLm=smoothScanLandmarks(lm);lastMetrics=computeMetrics(filteredLm);const q=qualityFor(lastMetrics);pushFrame(filteredLm,lastMetrics,result,q);drawFaceMap(filteredLm);scanSweep.classList.add('active');scanTech.textContent=currentStepIndex===3?'Underside scan • neckline curve • jaw corners':currentStepIndex===0?'Face geometry locked • jaw • cheeks • mouth • chin':`Profile geometry ${lastMetrics.profileCueCount}/4 • eye • nose • cheek depth • jaw`;stableFrames=q.ok?Math.min(stableFrames+1,24):0;const ready=q.ok&&stableFrames>=3;scannerScreen.classList.toggle('pose-ready',ready);if(ready)poseLockFeedback();setTrackerState(ready?'✓ Pose locked • capture ready':q.reason,ready?'good':q.state);shutterBtn.classList.toggle('ready',ready);shutterLabel.textContent=ready?'Capture':(q.ok?'Hold still':'Position');}else{noFaceFrames++;lastMetrics=null;stableFrames=0;scannerScreen.classList.remove('pose-ready');scanSweep.classList.remove('active');setTrackerState(noFaceFrames>10?'Looking for your face • keep eyes and chin visible':'Finding face…','warn');shutterBtn.classList.remove('ready');shutterLabel.textContent='Find face';const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);}}catch(err){inferenceErrors++;recoverTracker(err);}}}rafId=requestAnimationFrame(loop);}
+function loop(){if(!running)return;const now=performance.now();if(video.readyState>=2&&video.currentTime!==lastVideoTime&&now-lastInferenceAt>=48&&!trackerRecovering&&!trackerPaused){lastVideoTime=video.currentTime;lastInferenceAt=now;if(faceLandmarker){try{const result=detectScanFrame(now);inferenceErrors=0;lastResult=result;const lm=result?.faceLandmarks?.[0];if(lm){noFaceFrames=0;const filteredLm=smoothScanLandmarks(lm);lastMetrics=computeMetrics(filteredLm);const q=qualityFor(lastMetrics);pushFrame(filteredLm,lastMetrics,result,q);drawFaceMap(filteredLm);scanSweep.classList.add('active');scanTech.textContent=currentStepIndex===3?'Underside scan • neckline curve • jaw corners':currentStepIndex===0?'Face geometry locked • jaw • cheeks • mouth • chin':`Profile geometry ${lastMetrics.profileCueCount}/4 • eye • nose • cheek depth • jaw`;stableFrames=q.ok?Math.min(stableFrames+1,24):0;const ready=q.ok&&stableFrames>=3;scannerScreen.classList.toggle('pose-ready',ready);if(ready)poseLockFeedback();setTrackerState(ready?'✓ Pose locked • capture ready':q.reason,ready?'good':q.state);shutterBtn.classList.toggle('ready',ready);shutterLabel.textContent=ready?'Capture':(q.ok?'Hold still':'Position');}else{noFaceFrames++;lastMetrics=null;stableFrames=0;scannerScreen.classList.remove('pose-ready');scanSweep.classList.remove('active');setTrackerState(noFaceFrames>10?'Looking for your face • keep eyes and chin visible':'Finding face…','warn');shutterBtn.classList.remove('ready');shutterLabel.textContent='Find face';const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);}}catch(err){inferenceErrors++;recoverTracker(err);}}}rafId=requestAnimationFrame(loop);}
 function median(values){const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
 function stabilizedLandmarks(samples){const count=samples[0]?.landmarks?.length||0,out=[];for(let i=0;i<count;i++)out.push({x:median(samples.map(s=>s.landmarks[i].x)),y:median(samples.map(s=>s.landmarks[i].y)),z:median(samples.map(s=>s.landmarks[i].z))});return out;}
 function capturePhoto(){const c=document.createElement('canvas');c.width=video.videoWidth||1280;c.height=video.videoHeight||960;c.getContext('2d').drawImage(video,0,0,c.width,c.height);return{image:c.toDataURL('image/jpeg',.92),width:c.width,height:c.height};}
@@ -1148,7 +1176,7 @@ function adjustLiveZoom(delta){liveZoom=clamp(liveZoom+delta,.72,1.25);applyLive
 document.addEventListener('pointerdown',(event)=>{const target=event.target.closest('button,summary');if(!target||target.disabled)return;uiClickSound();uiHaptic(6);},{passive:true});
 
 /* ---------- events ---------- */
-$('#startScanBtn').addEventListener('click',()=>beginScan({reset:true}));$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));$('#retryCameraBtn').addEventListener('click',async()=>{try{faceLandmarker?.close?.();}catch(_e){}faceLandmarker=null;trackerPromise=null;trackerMode='VIDEO';imageFallbackRestarts=0;await startCamera();});$('#shutterBtn').addEventListener('click',takeCapture);$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face map visible':'Face map hidden');if(!showMesh){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);}});$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for the guide to turn green, then tap the shutter.'));$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));$('#useScanBtn').addEventListener('click',openStyles);
+$('#startScanBtn').addEventListener('click',()=>beginScan({reset:true}));$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));$('#retryCameraBtn').addEventListener('click',async()=>{try{faceLandmarker?.close?.();}catch(_e){}faceLandmarker=null;trackerPromise=null;trackerMode='VIDEO';imageFallbackRestarts=0;await startCamera();});trackerRetryBtn.addEventListener('click',manualRetryTracker);$('#shutterBtn').addEventListener('click',takeCapture);$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face map visible':'Face map hidden');if(!showMesh){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);}});$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for the guide to turn green, then tap the shutter.'));$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));$('#useScanBtn').addEventListener('click',openStyles);
 $$('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{if(btn.dataset.screen==='home')setScreen('home');if(btn.dataset.screen==='scan')beginScan({reset:true});if(btn.dataset.screen==='styles')openStyles();}));
 cameraToggleBtn.addEventListener('click',switchCamera);scanFaceLightBtn.addEventListener('click',toggleScanFaceLight);scanTorchBtn.addEventListener('click',toggleScanTorch);zoomOutBtn.addEventListener('click',()=>adjustScanZoom(-.06));zoomInBtn.addEventListener('click',()=>adjustScanZoom(.06));generatePreviewBtn.addEventListener('click',()=>{const key=`${selectedCategory}:${selectedStyle}`;aiPreviewCache.delete(key);generateProfessionalPreview();});photoModeBtn.addEventListener('click',()=>generateProfessionalPreview());liveModeBtn.addEventListener('click',startLiveMap);
 closeLiveMapBtn.addEventListener('click',()=>setScreen('styles'));liveCameraToggleBtn.addEventListener('click',switchLiveCamera);liveZoomInBtn.addEventListener('click',()=>adjustLiveZoom(.06));liveZoomOutBtn.addEventListener('click',()=>adjustLiveZoom(-.06));liveFaceLightBtn.addEventListener('click',toggleLiveFaceLight);liveTorchBtn.addEventListener('click',toggleLiveTorch);prevLiveBtn.addEventListener('click',()=>{liveStepIndex=Math.max(0,liveStepIndex-1);updateLiveStepUI();});doneLiveBtn.addEventListener('click',()=>{const steps=guardSequence();if(liveStepIndex<steps.length-1){liveStepIndex++;updateLiveStepUI();}else showToast('All guard and line steps complete.');});resetLiveBtn.addEventListener('click',()=>{liveStepIndex=0;updateLiveStepUI();});liveStepMinimizeBtn.addEventListener('click',()=>{liveMapScreen.classList.add('step-minimized');liveStepRestoreBtn.textContent=`${liveStepIndex+1}/${guardSequence().length} · ${guardSequence()[liveStepIndex].label} · Show step ▴`;liveStepRestoreBtn.classList.remove('hidden');});liveStepRestoreBtn.addEventListener('click',()=>{liveMapScreen.classList.remove('step-minimized');liveStepRestoreBtn.classList.add('hidden');});
