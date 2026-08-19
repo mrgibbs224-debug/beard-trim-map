@@ -1,0 +1,14 @@
+{
+  "name": "beard-trim-map-cloudflare-native-v11",
+  "private": true,
+  "version": "11.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}
