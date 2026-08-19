@@ -7,11 +7,18 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
-      return json({ ok: true, service: "beard-trim-map", aiBinding: Boolean(env.AI) });
+      return json({
+        ok: true,
+        service: "beard-trim-map",
+        aiBinding: Boolean(env.AI),
+      });
     }
 
     if (url.pathname === "/api/render-preview") {
-      if (request.method !== "POST") return json({ message: "POST required" }, 405);
+      if (request.method !== "POST") {
+        return json({ message: "POST required" }, 405);
+      }
+
       return renderPreview(request, env);
     }
 
@@ -20,25 +27,34 @@ export default {
         status: 200,
         headers: {
           "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-cache",
+          "cache-control": "no-store",
         },
       });
     }
 
-    return new Response("Not found", { status: 404 });
+    return new Response("Not found", {
+      status: 404,
+      headers: {
+        "cache-control": "no-store",
+      },
+    });
   },
 };
 
 async function renderPreview(request, env) {
   if (!env.AI) {
-    return json({
-      code: "CONFIG_MISSING",
-      message: "Workers AI binding 'AI' is not configured for this Worker.",
-    }, 503);
+    return json(
+      {
+        code: "CONFIG_MISSING",
+        message: "Workers AI binding 'AI' is not configured for this Worker.",
+      },
+      503
+    );
   }
 
   try {
     const body = await request.json();
+
     const {
       base,
       references = [],
@@ -53,10 +69,27 @@ async function renderPreview(request, env) {
     } = body || {};
 
     if (!base || !styleName) {
-      return json({ message: "Missing base image or selected style." }, 400);
+      return json(
+        {
+          message: "Missing base image or selected style.",
+        },
+        400
+      );
     }
 
     const images = [base, ...references].slice(0, 4);
     const form = new FormData();
 
-    images.forEach((
+    images.forEach((dataUrl, index) => {
+      form.append(
+        `input_image_${index}`,
+        dataUrlToBlob(dataUrl),
+        `scan-${index}.jpg`
+      );
+    });
+
+    form.append(
+      "prompt",
+      buildPrompt({
+        category,
+        styleId,
