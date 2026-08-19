@@ -60,7 +60,7 @@ h1{font-size:clamp(34px,9vw,54px);line-height:.96;margin:10px 0 14px;letter-spac
 .scanner-screen{background:#020405;position:relative;min-height:100dvh;padding-top:0;z-index:50}
 .camera-stage{position:relative;height:100dvh;min-height:580px;background:#020405;overflow:hidden}
 video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1) scale(.88);transform-origin:center center;transition:transform .16s ease;background:#000}
-#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:7}
 .camera-shade{position:absolute;inset:0;z-index:4;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.78) 0%,rgba(0,0,0,.10) 28%,rgba(0,0,0,.02) 58%,rgba(0,0,0,.72) 100%)}
 .scan-header{position:absolute;top:max(12px,env(safe-area-inset-top));left:0;right:0;padding:8px 16px 0;z-index:8}
 .scan-head-row{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:10px}
@@ -528,6 +528,8 @@ let liveLandmarker=null, liveTrackerPromise=null, liveFilterState=null, liveLast
 let previewAbort=null, previewTimer=null, poseLockBuzzed=false, uiAudioCtx=null;
 const aiPreviewCache=new Map();
 const isAndroidBrowser=/Android|SamsungBrowser/i.test(navigator.userAgent);
+const overlayDebugEnabled=new URLSearchParams(location.search).get('scanDebug')==='1';
+const overlayDiagnostics={drawInvocations:0,pathsDrawn:0,clearEvents:0,lastClearReason:'initial',landmarkCount:0,inferenceErrors:0,lastReportAt:0};
 
 const STEPS=[
  {id:'front',label:'Front',title:'Look straight ahead',detail:'Face the camera naturally. The scanner adapts to your own face shape and turns green when your neutral front pose is stable.',poseText:'Face the camera naturally',check:m=>m.frontalScore>=.52&&Math.abs(m.roll)<.18},
@@ -660,7 +662,11 @@ async function startCamera(){
 }
 function showCameraError(title,text){cameraErrorTitle.textContent=title;cameraErrorText.textContent=text;cameraError.classList.remove('hidden');setTrackerState('Camera unavailable','bad');}
 function stopCamera(){running=false;if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
-function resizeOverlay(){const rect=overlay.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;}return{w,h,dpr};}
+function createOverlayDiagnostics(){const rect=overlay.getBoundingClientRect(),overlayStyle=getComputedStyle(overlay),shadeStyle=getComputedStyle($('.camera-shade'));return{showMesh,hasLandmarks:overlayDiagnostics.landmarkCount>0,landmarkCount:overlayDiagnostics.landmarkCount,canvasWidth:overlay.width,canvasHeight:overlay.height,cssWidth:+rect.width.toFixed(1),cssHeight:+rect.height.toFixed(1),devicePixelRatio:window.devicePixelRatio||1,overlayZIndex:overlayStyle.zIndex,cameraShadeZIndex:shadeStyle.zIndex,drawFaceMapInvocations:overlayDiagnostics.drawInvocations,pathsDrawn:overlayDiagnostics.pathsDrawn,canvasClearEvents:overlayDiagnostics.clearEvents,lastClearReason:overlayDiagnostics.lastClearReason,inferenceErrors:overlayDiagnostics.inferenceErrors};}
+function verifyOverlayPresentation(now=performance.now()){if(!overlayDebugEnabled||now-overlayDiagnostics.lastReportAt<2000)return;overlayDiagnostics.lastReportAt=now;console.info('Scanner overlay diagnostics',createOverlayDiagnostics());}
+function recordCanvasClear(reason){overlayDiagnostics.clearEvents++;overlayDiagnostics.lastClearReason=reason;}
+function clearScannerOverlay(reason){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear(reason);}
+function resizeOverlay(){const rect=overlay.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;recordCanvasClear('canvas-resize');}return{w,h,dpr};}
 function displayPoint(p){const sw=cameraStage.clientWidth||1,sh=cameraStage.clientHeight||1,vw=video.videoWidth||sw,vh=video.videoHeight||sh,baseScale=Math.max(sw/vw,sh/vh),scale=baseScale*visualZoom,rw=vw*scale,rh=vh*scale,ox=(sw-rw)/2,oy=(sh-rh)/2,baseX=ox+p.x*rw,x=currentFacingMode==='user'?sw-baseX:baseX;return{x,y:oy+p.y*rh,z:p.z};}
 function P(lm,index){return displayPoint(lm[index]);}
 function computeDisplayFit(lm){const anchorIdx=[10,152,234,454,33,263,61,291,172,397],pts=anchorIdx.map(i=>displayPoint(lm[i])).filter(Boolean),xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),width=maxX-minX,height=maxY-minY,cx=(displayPoint(lm[10]).x+displayPoint(lm[152]).x+displayPoint(lm[1]).x)/3,cy=(displayPoint(lm[10]).y+displayPoint(lm[152]).y)/2,stageRect=cameraStage.getBoundingClientRect(),g=faceGuide.getBoundingClientRect(),gx=g.left-stageRect.left,gy=g.top-stageRect.top,gw=g.width,gh=g.height,gcx=gx+gw/2,gcy=gy+gh/2,profile=currentStepIndex===1||currentStepIndex===2,chin=currentStepIndex===3,tooFar=height<gh*(profile?.40:chin?.48:.50),tooClose=height>gh*(profile?1.14:1.10)||width>gw*(profile?1.18:1.12)||minY<-24||maxY>cameraStage.clientHeight+24,centerTolX=gw*(profile?.28:chin?.22:.20),centerTolY=gh*(chin?.23:.20),centerOk=Math.abs(cx-gcx)<centerTolX&&Math.abs(cy-gcy)<centerTolY,faceInFrame=minX>-cameraStage.clientWidth*.08&&maxX<cameraStage.clientWidth*1.08&&minY>-cameraStage.clientHeight*.08&&maxY<cameraStage.clientHeight*1.08;return{tooFar,tooClose,centerOk,faceInFrame,width,height,cx,cy,guideW:gw,guideH:gh};}
@@ -705,7 +711,7 @@ function smoothScanLandmarks(lm){
  return scanSmoothedLm.map(p=>({...p}));
 }
 function scanPoints(lm,indexes){return indexes.map(i=>P(lm,i));}
-function drawSmoothPolyline(points,stroke,width=2,closed=false,alpha=1){if(!points?.length)return;ctx.save();ctx.globalAlpha=alpha;traceSmoothPath(ctx,points,closed);ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();ctx.restore();}
+function drawSmoothPolyline(points,stroke,width=2,closed=false,alpha=1){if(!points?.length)return;ctx.save();ctx.globalAlpha=alpha;traceSmoothPath(ctx,points,closed);ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();ctx.restore();overlayDiagnostics.pathsDrawn++;}
 function drawPolyline(lm,indexes,stroke,width=2){ctx.beginPath();indexes.forEach((idx,i)=>{const p=P(lm,idx);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();}
 function drawScannerContour(lm,indexes,{color='rgba(240,207,131,.92)',width=2.2,closed=false,glow='rgba(240,207,131,.28)',alpha=1}={}){const pts=scanPoints(lm,indexes);if(!pts.length)return;ctx.save();ctx.globalAlpha=alpha;ctx.shadowColor=glow;ctx.shadowBlur=width*3.8;drawSmoothPolyline(pts,color,width,closed,1);ctx.restore();}
 function drawScannerDots(lm,indexes,color='rgba(255,247,227,.94)',r=1.7){indexes.forEach(idx=>{const p=P(lm,idx);ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();});}
@@ -743,34 +749,40 @@ function drawDerivedNeck(lm){
  ctx.restore();
 }
 function drawFaceMap(lm){
- const{w,h,dpr}=resizeOverlay();ctx.clearRect(0,0,w,h);if(!showMesh)return;ctx.save();ctx.scale(dpr,dpr);const step=STEPS[currentStepIndex]?.id||'front';
+ overlayDiagnostics.drawInvocations++;overlayDiagnostics.landmarkCount=lm?.length||0;const{w,h,dpr}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear('redraw');if(!showMesh||!lm?.length){verifyOverlayPresentation();return;}ctx.save();ctx.scale(dpr,dpr);const step=STEPS[currentStepIndex]?.id||'front';
  const gold='rgba(240,207,131,.96)', goldSoft='rgba(240,207,131,.60)', ice='rgba(146,204,255,.86)', mint='rgba(137,232,188,.82)', pearl='rgba(255,244,219,.96)';
  if(step==='front'){
   drawScannerContour(lm,FACE_OVAL,{color:'rgba(239,210,144,.92)',width:2.35,closed:true,glow:'rgba(240,207,131,.24)'});
   drawScannerContour(lm,LOWER_JAW,{color:gold,width:3.0,closed:false,glow:'rgba(240,207,131,.30)'});
+  drawScannerContour(lm,LEFT_EYE,{color:ice,width:1.55,closed:true,glow:'rgba(146,204,255,.18)'});
+  drawScannerContour(lm,RIGHT_EYE,{color:ice,width:1.55,closed:true,glow:'rgba(146,204,255,.18)'});
   drawScannerContour(lm,LEFT_BROW,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
   drawScannerContour(lm,RIGHT_BROW,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
-  drawScannerContour(lm,[168,6,197,195,5,4,1],{color:pearl,width:1.75,closed:false,glow:'rgba(255,244,219,.18)'});
-  drawScannerContour(lm,[61,146,91,181,84,17,314,405,321,375,291],{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
-  drawScannerContour(lm,[33,133],{color:ice,width:1.4,closed:false,glow:'rgba(146,204,255,.16)'});
-  drawScannerContour(lm,[263,362],{color:ice,width:1.4,closed:false,glow:'rgba(146,204,255,.16)'});
+  drawScannerContour(lm,NOSE,{color:pearl,width:1.75,closed:false,glow:'rgba(255,244,219,.18)'});
+  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
   drawScannerDots(lm,[10,1,61,291,17,152,234,454,172,397],pearl,1.65);
  }else if(step==='right-profile'||step==='left-profile'){
-  const side=visibleProfileSide(lm),outline=side==='left'?LEFT_PROFILE:RIGHT_PROFILE,eye=side==='left'?[33,133]:[263,362],brow=side==='left'?LEFT_BROW:RIGHT_BROW;
+  const side=visibleProfileSide(lm),outline=side==='left'?LEFT_PROFILE:RIGHT_PROFILE,eye=side==='left'?LEFT_EYE:RIGHT_EYE,brow=side==='left'?LEFT_BROW:RIGHT_BROW;
   drawScannerContour(lm,outline,{color:gold,width:3.1,closed:false,glow:'rgba(240,207,131,.30)'});
-  drawScannerContour(lm,brow,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)'});
-  drawScannerContour(lm,[168,6,197,195,5,4,1,94,2],{color:pearl,width:1.8,closed:false,glow:'rgba(255,244,219,.20)'});
-  drawScannerContour(lm,[61,91,84,17,314,321,291],{color:goldSoft,width:1.45,closed:false,glow:'rgba(240,207,131,.12)',alpha:.96});
-  drawScannerContour(lm,eye,{color:ice,width:1.35,closed:false,glow:'rgba(146,204,255,.16)'});
+  drawScannerContour(lm,eye,{color:ice,width:1.5,closed:true,glow:'rgba(146,204,255,.18)'});
+  drawScannerContour(lm,brow,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
+  drawScannerContour(lm,NOSE,{color:pearl,width:1.8,closed:false,glow:'rgba(255,244,219,.20)'});
+  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.45,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
   drawDerivedNeck(lm);
   drawScannerDots(lm,[10,1,17,152,side==='left'?234:454,side==='left'?172:397],pearl,1.7);
  }else{
+  drawScannerContour(lm,FACE_OVAL,{color:'rgba(239,210,144,.82)',width:2.1,closed:true,glow:'rgba(240,207,131,.18)'});
   drawScannerContour(lm,LOWER_JAW,{color:gold,width:3.0,closed:false,glow:'rgba(240,207,131,.30)'});
-  drawScannerContour(lm,[61,146,91,181,84,17,314,405,321,375,291],{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
+  drawScannerContour(lm,LEFT_EYE,{color:ice,width:1.45,closed:true,glow:'rgba(146,204,255,.16)'});
+  drawScannerContour(lm,RIGHT_EYE,{color:ice,width:1.45,closed:true,glow:'rgba(146,204,255,.16)'});
+  drawScannerContour(lm,LEFT_BROW,{color:mint,width:1.5,closed:false,glow:'rgba(137,232,188,.14)'});
+  drawScannerContour(lm,RIGHT_BROW,{color:mint,width:1.5,closed:false,glow:'rgba(137,232,188,.14)'});
+  drawScannerContour(lm,NOSE,{color:pearl,width:1.65,closed:false,glow:'rgba(255,244,219,.16)'});
+  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
   drawDerivedNeck(lm);
   drawScannerDots(lm,[61,291,17,152,172,397,149,378],pearl,1.75);
  }
- ctx.restore();
+ ctx.restore();verifyOverlayPresentation();
 }
 function getMatrix(result){const m=result?.facialTransformationMatrixes?.[0];if(!m)return null;if(Array.isArray(m))return[...m];if(m.data)return Array.from(m.data);return null;}
 function pushFrame(lm,metrics,result,quality){frameBuffer.push({ts:performance.now(),landmarks:lm.map(p=>({x:p.x,y:p.y,z:p.z})),metrics:{...metrics},matrix:getMatrix(result),good:quality.ok});if(frameBuffer.length>18)frameBuffer.shift();}
@@ -780,15 +792,15 @@ function loop(){
   lastVideoTime=video.currentTime;lastInferenceAt=now;
   if(faceLandmarker){
    try{
-    const result=faceLandmarker.detectForVideo(video,now);inferenceErrors=0;lastResult=result;const lm=result.faceLandmarks?.[0];
+    const result=faceLandmarker.detectForVideo(video,now);inferenceErrors=0;overlayDiagnostics.inferenceErrors=0;lastResult=result;const lm=result.faceLandmarks?.[0];overlayDiagnostics.landmarkCount=lm?.length||0;
     if(lm){
      const filteredLm=smoothScanLandmarks(lm);lastMetrics=computeMetrics(filteredLm);const q=qualityFor(lastMetrics);pushFrame(filteredLm,lastMetrics,result,q);drawFaceMap(filteredLm);scanSweep.classList.add('active');
      scanTech.textContent=currentStepIndex===3?'478-point underside map • throat • jaw':currentStepIndex===0?'478-point face map • align detected mesh inside oval':`478-point profile map • ${lastMetrics.profileCueCount}/4 pose cues`;
      stableFrames=q.ok?Math.min(stableFrames+1,24):0;const ready=q.ok&&stableFrames>=4;scannerScreen.classList.toggle('pose-ready',ready);if(ready)poseLockFeedback();setTrackerState(ready?'✓ Pose locked • capture ready':q.reason,ready?'good':q.state);shutterBtn.classList.toggle('ready',ready);shutterLabel.textContent=ready?'Capture':(q.ok?'Hold still':'Position');
     }else{
-     lastMetrics=null;stableFrames=0;scannerScreen.classList.remove('pose-ready');scanSweep.classList.remove('active');setTrackerState('Looking for facial landmarks…','warn');shutterBtn.classList.remove('ready');shutterLabel.textContent='Find face';const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);
+     lastMetrics=null;stableFrames=0;scannerScreen.classList.remove('pose-ready');scanSweep.classList.remove('active');setTrackerState('Looking for facial landmarks…','warn');shutterBtn.classList.remove('ready');shutterLabel.textContent='Find face';clearScannerOverlay('no-landmarks');verifyOverlayPresentation(now);
     }
-   }catch(err){inferenceErrors++;console.warn('Scan face tracker',err);if(inferenceErrors>=2)recoverTracker(err);else setTrackerState('Reacquiring facial landmarks…','warn');}
+   }catch(err){inferenceErrors++;overlayDiagnostics.inferenceErrors=inferenceErrors;console.warn('Scan face tracker',err);verifyOverlayPresentation(now);if(inferenceErrors>=2)recoverTracker(err);else setTrackerState('Reacquiring facial landmarks…','warn');}
   }
  }
  rafId=requestAnimationFrame(loop);
@@ -1173,7 +1185,7 @@ function adjustLiveZoom(delta){liveZoom=clamp(liveZoom+delta,.72,1.25);applyLive
 document.addEventListener('pointerdown',(event)=>{const target=event.target.closest('button,summary');if(!target||target.disabled)return;uiClickSound();uiHaptic(6);},{passive:true});
 
 /* ---------- events ---------- */
-$('#startScanBtn').addEventListener('click',()=>beginScan({reset:true}));$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));$('#retryCameraBtn').addEventListener('click',startCamera);$('#shutterBtn').addEventListener('click',takeCapture);$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face map visible':'Face map hidden');if(!showMesh){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);}});$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for Face locked, then tap the shutter.'));$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));$('#useScanBtn').addEventListener('click',openStyles);
+$('#startScanBtn').addEventListener('click',()=>beginScan({reset:true}));$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));$('#retryCameraBtn').addEventListener('click',startCamera);$('#shutterBtn').addEventListener('click',takeCapture);$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face tracking visible':'Face tracking hidden');if(!showMesh)clearScannerOverlay('user-toggle');});$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for Face locked, then tap the shutter.'));$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));$('#useScanBtn').addEventListener('click',openStyles);
 $$('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{if(btn.dataset.screen==='home')setScreen('home');if(btn.dataset.screen==='scan')beginScan({reset:true});if(btn.dataset.screen==='styles')openStyles();}));
 cameraToggleBtn.addEventListener('click',switchCamera);scanFaceLightBtn.addEventListener('click',toggleScanFaceLight);scanTorchBtn.addEventListener('click',toggleScanTorch);zoomOutBtn.addEventListener('click',()=>adjustScanZoom(-.06));zoomInBtn.addEventListener('click',()=>adjustScanZoom(.06));generatePreviewBtn.addEventListener('click',()=>{const key=`${selectedCategory}:${selectedStyle}`;aiPreviewCache.delete(key);generateProfessionalPreview();});photoModeBtn.addEventListener('click',()=>generateProfessionalPreview());liveModeBtn.addEventListener('click',startLiveMap);
 closeLiveMapBtn.addEventListener('click',()=>setScreen('styles'));liveCameraToggleBtn.addEventListener('click',switchLiveCamera);liveZoomInBtn.addEventListener('click',()=>adjustLiveZoom(.06));liveZoomOutBtn.addEventListener('click',()=>adjustLiveZoom(-.06));liveFaceLightBtn.addEventListener('click',toggleLiveFaceLight);liveTorchBtn.addEventListener('click',toggleLiveTorch);prevLiveBtn.addEventListener('click',()=>{liveStepIndex=Math.max(0,liveStepIndex-1);updateLiveStepUI();});doneLiveBtn.addEventListener('click',()=>{const steps=guardSequence();if(liveStepIndex<steps.length-1){liveStepIndex++;updateLiveStepUI();}else showToast('All guard and line steps complete.');});resetLiveBtn.addEventListener('click',()=>{liveStepIndex=0;updateLiveStepUI();});liveStepMinimizeBtn.addEventListener('click',()=>{liveMapScreen.classList.add('step-minimized');liveStepRestoreBtn.textContent=`${liveStepIndex+1}/${guardSequence().length} · ${guardSequence()[liveStepIndex].label} · Show step ▴`;liveStepRestoreBtn.classList.remove('hidden');});liveStepRestoreBtn.addEventListener('click',()=>{liveMapScreen.classList.remove('step-minimized');liveStepRestoreBtn.classList.add('hidden');});
