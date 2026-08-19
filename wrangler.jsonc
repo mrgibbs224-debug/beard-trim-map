@@ -1,9 +1,15 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "beard-trim-map-test",
+  "name": "beard-trim-map",
   "main": "./worker.js",
   "compatibility_date": "2026-08-18",
   "workers_dev": true,
+  "rules": [
+    {
+      "type": "Text",
+      "globs": ["**/*.html"]
+    }
+  ],
   "ai": {
     "binding": "AI",
     "remote": true
