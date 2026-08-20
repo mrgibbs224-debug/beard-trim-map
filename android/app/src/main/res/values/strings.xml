@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Beard Trim Map</string>
+    <string name="home_message">Native Android shell</string>
+    <string name="about_message">Phase 1 shell ready</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_about">About</string>
+</resources>
+

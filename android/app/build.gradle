@@ -1,0 +1,39 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace = "com.beardtrimmap.app"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "com.beardtrimmap.app"
+        minSdk = 24
+        targetSdk = 37
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "android.app.Instrumentation"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError = true
+        warningsAsErrors = true
+        disable += "AndroidGradlePluginVersion"
+    }
+}
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
+}
