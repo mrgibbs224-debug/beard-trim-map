@@ -25,7 +25,18 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body.native-active, body.native-active html{background:transparent!important}
 body{min-height:100dvh}
+body.native-active .app{background:transparent!important}
+body.native-active .screen{background:transparent!important}
+body.native-active .scanner-screen{background:transparent!important}
+body.native-active .live-map-screen{background:transparent!important}
+body.native-active .camera-stage{background:transparent!important}
+body.native-active .live-map-stage{background:transparent!important}
+body.native-active .live-map-stage::after{display:none!important}
+body.native-active .camera-shade, body.native-active .live-map-shade{background:transparent!important;opacity:0!important}
+body.native-active .scan-face-light, body.native-active .live-face-light{display:none!important}
+body.native-active #video, body.native-active #liveVideo{display:none!important}
 button{font:inherit}
 button:focus-visible{outline:3px solid rgba(217,173,89,.58);outline-offset:3px}
 .hidden{display:none!important}
@@ -44,8 +55,9 @@ h1{font-size:clamp(34px,9vw,54px);line-height:.96;margin:10px 0 14px;letter-spac
 .scan-card{margin-top:22px;padding:20px}
 .scan-card h2{font-size:21px;margin:0 0 8px}
 .scan-card p{color:var(--muted);line-height:1.45;margin:0 0 18px}
-.scan-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:18px 0}
+.scan-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}
 .mini-step{background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:13px;padding:10px 6px;text-align:center}
+.scan-steps .mini-step:nth-child(1){order:1}.scan-steps .mini-step:nth-child(5){order:2}.scan-steps .mini-step:nth-child(2){order:3}.scan-steps .mini-step:nth-child(6){order:4}.scan-steps .mini-step:nth-child(3){order:5}.scan-steps .mini-step:nth-child(4){order:6}
 .mini-icon{font-size:20px;display:block;margin-bottom:6px}
 .mini-label{font-size:10px;font-weight:800;color:#c5d1d6;line-height:1.15}
 .primary{width:100%;border:0;border-radius:15px;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#171006;padding:15px 18px;font-weight:900;font-size:16px;box-shadow:0 10px 30px rgba(217,173,89,.18);cursor:pointer}
@@ -318,17 +330,19 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
     </section>
 
     <section class="card scan-card">
-      <h2>4-angle face scan</h2>
-      <p>The camera guides you through four quick captures. Each angle saves a stabilized facial landmark mesh for the trim map.</p>
+      <h2>Six-angle Precision Scan</h2>
+      <p>The camera guides you through six quick captures. Each pose keeps its own stabilized landmark reference for the trim map.</p>
       <div class="scan-steps">
         <div class="mini-step"><span class="mini-icon">◉</span><span class="mini-label">Front</span></div>
         <div class="mini-step"><span class="mini-icon">◑</span><span class="mini-label">Right<br>profile</span></div>
         <div class="mini-step"><span class="mini-icon">◐</span><span class="mini-label">Left<br>profile</span></div>
         <div class="mini-step"><span class="mini-icon">⌃</span><span class="mini-label">Chin<br>up</span></div>
+        <div class="mini-step"><span class="mini-icon">◶</span><span class="mini-label">Right<br>3/4</span></div>
+        <div class="mini-step"><span class="mini-icon">◵</span><span class="mini-label">Left<br>3/4</span></div>
       </div>
       <button id="startScanBtn" class="primary" type="button">Start face scan</button>
       <div class="info-row">
-        <div class="info-box"><b>478 points</b><span>Tracked on each accepted camera frame.</span></div>
+        <div class="info-box"><b>Dense face mesh</b><span>Tracked on each accepted camera frame.</span></div>
         <div class="info-box"><b>Stabilized captures</b><span>Recent good frames are combined to reduce jitter.</span></div>
       </div>
     </section>
@@ -365,7 +379,10 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
       <div id="cameraError" class="camera-error hidden">
         <h3 id="cameraErrorTitle">Camera unavailable</h3>
         <p id="cameraErrorText">Check camera permission and try again.</p>
-        <button id="retryCameraBtn" class="primary" type="button">Try camera again</button>
+        <div id="cameraErrorActions" class="review-actions">
+           <button id="retryCameraBtn" class="primary" type="button">Try camera again</button>
+           <button id="settingsBtn" class="secondary hidden" type="button">Open Settings</button>
+        </div>
       </div>
 
       <div class="scan-light-tools" aria-label="Scanner lighting controls">
@@ -396,7 +413,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
   <main id="reviewScreen" class="screen review hidden">
     <div class="eyebrow">Scan complete</div>
     <h1>Review your scan</h1>
-    <p class="subcopy">These four angles are used together to build the face and beard-region geometry.</p>
+    <p class="subcopy">These six poses are used together to build the face and beard-region geometry.</p>
     <div id="captureGrid" class="capture-grid"></div>
     <div class="accuracy"><div class="accuracy-icon">✓</div><div><b id="accuracyTitle">Four-angle geometry captured</b><span id="accuracyText">Each photo includes a stabilized facial landmark set assembled from recent tracked frames.</span></div></div>
     <div class="review-actions">
@@ -434,7 +451,7 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
         <p id="selectedStyleCopy">Defined cheek lines with balanced length and a neat neckline.</p>
         <div class="preview-tools">
           <div class="mini-pill">No guide lines in photo preview</div>
-          <div class="mini-pill">4 scan angles used as references</div>
+          <div class="mini-pill">6 scan poses used as references</div>
           <div id="previewModeLabel" class="mini-pill">Original scan shown</div>
         </div>
       </div>
@@ -508,6 +525,57 @@ video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transfor
 </div>
 <div id="toast" class="toast"></div>
 
+<script>
+// BOOTSTRAP DIAGNOSTIC SCRIPT (Non-Module)
+(function() {
+  function trace(tag, data = '') {
+    const msg = `[BEARD_TRACE] ${tag} ${data}`;
+    console.log(msg);
+    if (window.BeardTrimAndroid && typeof window.BeardTrimAndroid.log === 'function') {
+      try { window.BeardTrimAndroid.log(msg); } catch(e) {}
+    }
+  }
+  window.trace = trace;
+
+  trace('SCRIPT_BOOT');
+
+  window.onerror = function(msg, url, line, col, error) {
+    trace('GLOBAL_ERROR', `${msg} at ${line}:${col} url:${url}`);
+    return false;
+  };
+
+  window.onunhandledrejection = function(event) {
+    trace('UNHANDLED_REJECTION', event.reason);
+  };
+
+  // Capturing listener for resource loading failures (CDN, Modules, etc)
+  window.addEventListener('error', function(event) {
+    if (event.target && (event.target.src || event.target.href)) {
+      trace('RESOURCE_LOAD_FAILURE', `url: ${event.target.src || event.target.href} tag: ${event.target.tagName}`);
+    }
+  }, true);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    trace('DOM_READY');
+    if (window.BeardTrimAndroid) {
+      trace('NATIVE_BRIDGE_PRESENT');
+      try {
+        window.BeardTrimAndroid.log('[BEARD_TRACE] BRIDGE_TEST_OK');
+      } catch(e) {
+        console.warn('Bridge log test failed', e);
+      }
+    } else {
+      trace('NATIVE_BRIDGE_MISSING');
+    }
+  });
+
+  // DOM-level click diagnostic
+  document.addEventListener('click', (e) => {
+    const el = e.target;
+    trace('DOM_CLICK', `tag:${el.tagName} id:${el.id} class:${el.className}`);
+  }, true);
+})();
+</script>
 
 <script type="module">
 import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
@@ -517,6 +585,9 @@ const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wa
 const APP_VERSION = 'v31';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+
+// Module execution checkpoint
+if (window.trace) window.trace('MODULE_BOOT');
 
 const homeScreen=$("#homeScreen"), scannerScreen=$("#scannerScreen"), reviewScreen=$("#reviewScreen"), stylesScreen=$("#stylesScreen"), liveMapScreen=$("#liveMapScreen"), mainTopbar=$("#mainTopbar"), bottomNav=$("#bottomNav");
 const scanStatusPill=$("#scanStatusPill"), video=$("#video"), overlay=$("#overlay"), ctx=overlay.getContext("2d"), faceGuide=$("#faceGuide"), trackerChip=$("#trackerChip"), scanProgress=$("#scanProgress"), stepKicker=$("#stepKicker"), stepTitle=$("#stepTitle"), stepDetail=$("#stepDetail"), shutterBtn=$("#shutterBtn"), shutterLabel=$("#shutterLabel"), lastThumb=$("#lastThumb"), flash=$("#flash"), cameraError=$("#cameraError"), cameraErrorTitle=$("#cameraErrorTitle"), cameraErrorText=$("#cameraErrorText"), captureGrid=$("#captureGrid");
@@ -533,16 +604,41 @@ const aiPreviewCache=new Map();
 const isAndroidBrowser=/Android|SamsungBrowser/i.test(navigator.userAgent);
 const overlayDebugEnabled=new URLSearchParams(location.search).get('scanDebug')==='1';
 const scanDebugPanel=$("#scanDebugPanel");
+
+if (window.trace) window.trace('CONSTANTS_INIT_COMPLETE');
+
+const nativeTracking={capabilities:null,lastPacket:null,state:'browser-emergency'};
+window.BEARD_TRIM_MIRROR_MODE = 'B';
+try{nativeTracking.capabilities=window.BeardTrimAndroid?JSON.parse(window.BeardTrimAndroid.capabilities()):null;}catch(err){console.info('Native tracking bridge unavailable; browser emergency tracker retained',err);}
+window.BeardTrimNative={
+ onTrackingPacket:raw=>{try{const packet=typeof raw==='string'?JSON.parse(raw):raw;if(packet?.contractVersion===1){if(!nativeTracking.lastPacket&&packet.landmarks){trace('NATIVE_LANDMARK_JS_ACK_FIRST',`count=${packet.landmarks.length}`);}nativeTracking.lastPacket=packet;}}catch(err){console.warn('Ignored invalid native tracking packet',err);}},
+ onTrackingState:raw=>{try{const state=typeof raw==='string'?JSON.parse(raw):raw;if(state?.contractVersion===1) { nativeTracking.state=state.state; if (window.handleNativeStateChange) window.handleNativeStateChange(state.state); } }catch(err){console.warn('Ignored invalid native tracking state',err);}}
+};
 const overlayDiagnostics={facesDetected:0,drawInvocations:0,pathsDrawn:0,clearEvents:0,lastClearReason:'initial',landmarkCount:0,inferenceErrors:0,lastReportAt:0,lastGoodLandmarksAt:0,lastDrawAt:0,clearAfterDraw:false,trackerState:'not started'};
 $$('.build-badge').forEach(el=>el.textContent=APP_VERSION);
 if(overlayDebugEnabled)scanDebugPanel.classList.remove('hidden');
 
+function capturedPose(id){return captures.find(c=>c.id===id);}
+function sameTurnDirection(m,id){const prior=capturedPose(id);return !prior?.metrics?.profileDirection||m.profileDirection===prior.metrics.profileDirection;}
+function oppositeTurnDirection(m,id){const prior=capturedPose(id);return !prior?.metrics?.profileDirection||m.profileDirection!==prior.metrics.profileDirection;}
 const STEPS=[
- {id:'front',label:'Front',title:'Look straight ahead',detail:'Face the camera naturally. The scanner adapts to your own face shape and turns green when your neutral front pose is stable.',poseText:'Face the camera naturally',check:m=>m.frontalScore>=.52&&Math.abs(m.roll)<.18},
- {id:'right-profile',label:'Right profile',title:'Turn fully to your right',detail:'Show a true side profile. The scanner compares this pose with your own front scan, so different face shapes do not need the same amount of turn.',poseText:'Turn until the outline turns green',check:m=>m.isProfilePose&&m.profileScore>=.30},
- {id:'left-profile',label:'Left profile',title:'Turn fully to your left',detail:'Show the opposite full side profile. Your first profile is used as an additional personal reference for the second side.',poseText:'Turn to the opposite side until the outline turns green',check:m=>{const right=captures.find(c=>c.id==='right-profile');return m.isProfilePose&&m.profileScore>=.30&&(!right||!right.metrics.profileDirection||m.profileDirection!==right.metrics.profileDirection);}},
- {id:'chin-up',label:'Chin up',title:'Lift your chin',detail:'Face forward again, then lift your chin. The scanner measures the change from your own neutral front pose instead of requiring one fixed head angle.',poseText:'Face forward, then lift until the outline turns green',check:m=>!m.isProfilePose&&Math.abs(m.roll)<.20&&m.chinLiftScore>=.46}
+ {id:'front',label:'Front',title:'Look straight ahead',detail:'Face the camera naturally. Target: 0°',poseText:'Face the camera naturally',check:m=>Math.abs(m.yawDeg)<8&&Math.abs(m.rollDeg)<10},
+ {id:'right-three-quarter',label:'Right 3/4',title:'Turn halfway right',detail:'Turn until about 55-60° right.',poseText:'Turn halfway right',check:m=>m.yawDeg>=52&&m.yawDeg<=68},
+ {id:'right-profile',label:'Full Right Profile',title:'Turn fully right',detail:'Turn until about 85-90° right.',poseText:'Turn fully right',check:m=>m.yawDeg>=82&&m.yawDeg<=95},
+ {id:'left-three-quarter',label:'Left 3/4',title:'Turn halfway left',detail:'Turn until about 55-60° left.',poseText:'Turn halfway left',check:m=>m.yawDeg<=-52&&m.yawDeg>=-68},
+ {id:'left-profile',label:'Full Left Profile',title:'Turn fully left',detail:'Turn until about 85-90° left.',poseText:'Turn fully left',check:m=>m.yawDeg<=-82&&m.yawDeg>=-95},
+ {id:'chin-up',label:'Chin up',title:'Lift your chin',detail:'Lift until the outline turns green.',poseText:'Lift your chin',check:m=>Math.abs(m.yawDeg)<15&&m.pitchDeg<=-25}
 ];
+
+const LANDMARK_MAP = {
+  jawline: [234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454],
+  noseBridge: [168, 6, 197, 195, 5],
+  noseContour: [70, 63, 105, 66, 107, 336, 296, 334, 293, 300], // Brows actually, reusing indices for brevity
+  lips: [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 78, 61],
+  leftEye: [33, 160, 158, 133, 153, 144, 33],
+  rightEye: [263, 387, 385, 362, 380, 373, 263],
+  centerline: [10, 1, 152]
+};
 
 const STYLE_LIBRARY={
  beards:[
@@ -581,9 +677,11 @@ const STYLE_LIBRARY={
 function currentStyle(){return STYLE_LIBRARY[selectedCategory].find(s=>s.id===selectedStyle)||STYLE_LIBRARY.beards[0];}
 function showToast(message){toast.textContent=message;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),2400);}
 function setScreen(name){
+  if (window.trace) window.trace('SET_SCREEN_REQUESTED', name);
  homeScreen.classList.toggle('hidden',name!=='home'); reviewScreen.classList.toggle('hidden',name!=='review'); stylesScreen.classList.toggle('hidden',name!=='styles'); scannerScreen.classList.toggle('hidden',name!=='scanner'); liveMapScreen.classList.toggle('hidden',name!=='live');
  const immersive=name==='scanner'||name==='live'; mainTopbar.classList.toggle('hidden',immersive); bottomNav.classList.toggle('hidden',immersive||name==='review'); $$('.nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.screen===name));
  if(name!=='scanner')stopCamera(); if(name!=='live')stopLiveCamera(); window.scrollTo({top:0,behavior:'auto'});
+ if (window.trace) window.trace('SET_SCREEN_COMPLETE', name);
 }
 function renderProgress(){scanProgress.innerHTML=STEPS.map((_,i)=>`<span class="progress-dot ${i<currentStepIndex?'done':''} ${i===currentStepIndex?'current':''}"></span>`).join('');}
 function updateStepCopy(){poseLockBuzzed=false;const step=STEPS[currentStepIndex];stepKicker.textContent=`${currentStepIndex+1} of ${STEPS.length} · ${step.label.toUpperCase()}`;stepTitle.textContent=step.title;stepDetail.textContent=step.detail;renderProgress();faceGuide.dataset.pose=step.id;faceGuide.className=`face-guide warn pose-${step.id}`;}
@@ -644,6 +742,7 @@ async function createTracker(delegate='CPU'){
  faceLandmarker=await FaceLandmarker.createFromOptions(vision,options);trackerDelegate=delegate;engineBadge.textContent=`Face scan • precision ${delegate.toLowerCase()} • ${APP_VERSION}`;return faceLandmarker;
 }
 async function ensureTracker(){
+ if(window.BeardTrimAndroid){ console.log("BeardTrim: skipping browser tracker initialization (native active)"); return null; }
  if(faceLandmarker)return faceLandmarker;if(trackerPromise)return trackerPromise;
  trackerPromise=(async()=>{setTrackerState('Loading precision face map…','warn');if(isAndroidBrowser)return createTracker('CPU');try{return await createTracker('GPU');}catch(_e){return createTracker('CPU');}})().catch(err=>{trackerPromise=null;faceLandmarker=null;setTrackerState('Face map failed to load','bad');throw err;});return trackerPromise;
 }
@@ -654,60 +753,136 @@ async function recoverTracker(err){
  finally{trackerRecovering=false;}
 }
 async function createLiveTracker(delegate='CPU'){
+ console.log("BeardTrim: createLiveTracker", delegate);
+ if(window.BeardTrimAndroid) { console.warn("BeardTrim: createLiveTracker called but native bridge is present"); return null; }
  const vision=await FilesetResolver.forVisionTasks(WASM_ROOT);const options={runningMode:'VIDEO',numFaces:1,minFaceDetectionConfidence:.26,minFacePresenceConfidence:.24,minTrackingConfidence:.24,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:true,baseOptions:{modelAssetPath:MODEL_URL,delegate}};
  try{liveLandmarker?.close?.();}catch(_e){}liveLandmarker=await FaceLandmarker.createFromOptions(vision,options);return liveLandmarker;
 }
 async function ensureLiveTracker(){
+ if(window.BeardTrimAndroid){ console.log("BeardTrim: skipping browser live-tracker initialization (native active)"); return null; }
  if(liveLandmarker)return liveLandmarker;if(liveTrackerPromise)return liveTrackerPromise;
  liveTrackerPromise=(async()=>{if(isAndroidBrowser)return createLiveTracker('CPU');try{return await createLiveTracker('GPU');}catch(_e){return createLiveTracker('CPU');}})().catch(err=>{liveTrackerPromise=null;liveLandmarker=null;throw err;});return liveTrackerPromise;
 }
 
+const settingsBtn=$("#settingsBtn");
+
+if (window.trace) window.trace('READY_FOR_NATIVE_INIT');
+
+function handleNativeStateChange(state) {
+  trace('NATIVE_STATE_CHANGE', state);
+  if (state === 'started') {
+    document.body.classList.add('native-active');
+    trace('NATIVE_ACTIVE_CLASS_APPLIED');
+    cameraError.classList.add('hidden');
+    running = true;
+    ensureTracker();
+    trace('TRACKER_UI_ACTIVE');
+    loop();
+  } else if (state === 'stopped') {
+    document.body.classList.remove('native-active');
+  } else if (state === 'permission-denied') {
+    showCameraError('Permission Denied', 'Camera access is required for face scanning.');
+    settingsBtn.classList.add('hidden');
+  } else if (state === 'permission-permanently-denied') {
+    showCameraError('Permission Locked', 'Camera access is permanently disabled. Please enable it in App Settings.');
+    settingsBtn.classList.remove('hidden');
+  } else if (state === 'error' || state === 'unsupported') {
+    showCameraError('Tracker Error', 'The native face tracker could not be initialized.');
+  }
+}
+window.handleNativeStateChange = handleNativeStateChange;
+
 async function startCamera(){
- cameraError.classList.add('hidden'); if(!window.isSecureContext)return showCameraError('Secure connection required','Camera access needs HTTPS.'); if(!navigator.mediaDevices?.getUserMedia)return showCameraError('Camera not supported','This browser does not expose camera access.');
+ trace('START_CAMERA_ENTRY');
+ cameraError.classList.add('hidden'); settingsBtn.classList.add('hidden');
+ if(!window.isSecureContext) {
+   trace('SECURE_CONTEXT_MISSING');
+   return showCameraError('Secure connection required','Camera access needs HTTPS.');
+ }
+ if(window.BeardTrimAndroid){
+  trace('NATIVE_BRIDGE_PRESENT');
+  document.body.classList.add('native-active');
+  try {
+    const result = window.BeardTrimAndroid.startTracking(currentFacingMode);
+    trace('NATIVE_START_STATE', result);
+    if (result === 'started') {
+      running = true;
+      ensureTracker();
+      loop();
+    } else if (result === 'starting' || result === 'permission-pending') {
+      setTrackerState(result === 'starting' ? 'Starting camera…' : 'Waiting for permission…', 'warn');
+    } else {
+      handleNativeStateChange(result);
+    }
+  } catch(err) {
+    trace('BRIDGE_EXCEPTION', err.message);
+    console.error("BeardTrim: bridge call failed", err);
+    showCameraError('Bridge Error', 'The native camera bridge encountered an exception.');
+  }
+  return;
+ }
+ trace('BROWSER_FALLBACK');
+ if(!navigator.mediaDevices?.getUserMedia)return showCameraError('Camera not supported','This browser does not expose camera access.');
  try{if(stream)stopCamera();applyVideoPresentation();setTrackerState('Requesting camera…','warn');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:currentFacingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}},audio:false});video.srcObject=stream;await new Promise(resolve=>{if(video.readyState>=1)return resolve();video.addEventListener('loadedmetadata',resolve,{once:true});});await video.play();running=true;lastVideoTime=-1;lastInferenceAt=0;inferenceErrors=0;stableFrames=0;frameBuffer=[];applyVideoPresentation();refreshScanTorchSupport();await applyCameraAssist(stream?.getVideoTracks?.()[0]);await ensureTracker();loop();}catch(err){let title='Camera unavailable',text='The camera could not be opened.';if(err?.name==='NotAllowedError'||err?.name==='SecurityError'){title='Camera permission blocked';text='Allow camera permission for this site, then retry.';}else if(err?.name==='NotReadableError'){title='Camera is busy';text='Another app may be using the camera.';}showCameraError(title,text);}
 }
 function showCameraError(title,text){cameraErrorTitle.textContent=title;cameraErrorText.textContent=text;cameraError.classList.remove('hidden');setTrackerState('Camera unavailable','bad');}
-function stopCamera(){running=false;if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
+function stopCamera(){
+ console.log("BeardTrim: stopCamera");
+ running=false;
+ if(window.BeardTrimAndroid){
+   try {
+     window.BeardTrimAndroid.stopTracking();
+     window.BeardTrimAndroid.setTransparency(false);
+   } catch(e) { console.warn("Bridge stop failed", e); }
+   document.body.classList.remove('native-active');
+ }
+ if(rafId)cancelAnimationFrame(rafId);rafId=null;if(stream){const track=stream.getVideoTracks?.()[0];if(scanTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;scanSweep.classList.remove('active');scanSmoothedLm=null;scanFilterState=null;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');updateScanLightUI();}
 function createOverlayDiagnostics(now=performance.now()){const rect=overlay.getBoundingClientRect(),overlayStyle=getComputedStyle(overlay),shadeStyle=getComputedStyle($('.camera-shade')),videoStyle=getComputedStyle(video),stageRect=cameraStage.getBoundingClientRect();return{showMesh,facesDetected:overlayDiagnostics.facesDetected,landmarkCount:overlayDiagnostics.landmarkCount,drawFaceMapCalls:overlayDiagnostics.drawInvocations,pathsDrawn:overlayDiagnostics.pathsDrawn,canvasSize:`${overlay.width} × ${overlay.height}`,overlayCssSize:`${rect.width.toFixed(1)} × ${rect.height.toFixed(1)}`,overlayZIndex:overlayStyle.zIndex,overlayOpacityVisibility:`${overlayStyle.opacity} / ${overlayStyle.visibility} / ${overlayStyle.display}`,cameraShadeZIndex:shadeStyle.zIndex,lastCanvasClearReason:overlayDiagnostics.lastClearReason,canvasClearCount:overlayDiagnostics.clearEvents,inferenceErrorCount:overlayDiagnostics.inferenceErrors,msSinceLastGoodLandmarks:overlayDiagnostics.lastGoodLandmarksAt?Math.round(now-overlayDiagnostics.lastGoodLandmarksAt):'never',trackerState:overlayDiagnostics.trackerState,currentScanPose:STEPS[currentStepIndex]?.id||'unknown',clearAfterDraw:overlayDiagnostics.clearAfterDraw,coordinateConversion:`mirror=${currentFacingMode==='user'}; objectFit=${videoStyle.objectFit}; zoom=${visualZoom.toFixed(2)}; video=${video.videoWidth}×${video.videoHeight}; stage=${stageRect.width.toFixed(1)}×${stageRect.height.toFixed(1)}; dpr=${(window.devicePixelRatio||1).toFixed(2)}`};}
 function debugFailureCategory(d){if(d.inferenceErrorCount)return'I: inference error (see console)';if(!d.facesDetected)return'A: MediaPipe returns no face';if(!d.landmarkCount)return'B: face exists but no landmarks';if(!d.drawFaceMapCalls)return'C: drawFaceMap not called';if(!d.pathsDrawn)return'D: drawFaceMap drew zero paths';if(d.clearAfterDraw)return'H: canvas cleared after drawing';if(d.overlayOpacityVisibility.startsWith('0 ')||d.overlayOpacityVisibility.includes('/ hidden')||d.overlayOpacityVisibility.endsWith('/ none'))return'F: overlay hidden by CSS';if(!d.showMesh)return'G: showMesh is false';return'E/F/I: use markers to distinguish coordinates/visibility';}
 function verifyOverlayPresentation(now=performance.now()){if(!overlayDebugEnabled||now-overlayDiagnostics.lastReportAt<250)return;overlayDiagnostics.lastReportAt=now;const d=createOverlayDiagnostics(now),labels={showMesh:'showMesh',facesDetected:'faces detected',landmarkCount:'landmark count',drawFaceMapCalls:'drawFaceMap call count',pathsDrawn:'paths drawn',canvasSize:'overlay canvas width/height',overlayCssSize:'overlay CSS width/height',overlayZIndex:'overlay z-index',overlayOpacityVisibility:'overlay opacity/visibility',cameraShadeZIndex:'camera-shade z-index',lastCanvasClearReason:'last canvas-clear reason',canvasClearCount:'canvas-clear count',inferenceErrorCount:'inference-error count',msSinceLastGoodLandmarks:'milliseconds since last good landmarks',trackerState:'tracker state',currentScanPose:'current scan pose'};scanDebugPanel.textContent=`failure check: ${debugFailureCategory(d)}\n`+Object.entries(labels).map(([key,label])=>`${label}: ${d[key]}`).join('\n')+`\nclear after draw: ${d.clearAfterDraw}\nconversion: ${d.coordinateConversion}`;console.info('Scanner overlay diagnostics',d);}
 function recordCanvasClear(reason){const now=performance.now();overlayDiagnostics.clearEvents++;overlayDiagnostics.lastClearReason=reason;overlayDiagnostics.clearAfterDraw=overlayDiagnostics.lastDrawAt>0&&now-overlayDiagnostics.lastDrawAt<100;}
 function clearScannerOverlay(reason){const{w,h}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear(reason);}
 function resizeOverlay(){const rect=overlay.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));if(overlay.width!==w||overlay.height!==h){overlay.width=w;overlay.height=h;recordCanvasClear('canvas-resize');}return{w,h,dpr};}
-function displayPoint(p){const sw=cameraStage.clientWidth||1,sh=cameraStage.clientHeight||1,vw=video.videoWidth||sw,vh=video.videoHeight||sh,baseScale=Math.max(sw/vw,sh/vh),scale=baseScale*visualZoom,rw=vw*scale,rh=vh*scale,ox=(sw-rw)/2,oy=(sh-rh)/2,baseX=ox+p.x*rw,x=currentFacingMode==='user'?sw-baseX:baseX;return{x,y:oy+p.y*rh,z:p.z};}
-function P(lm,index){return displayPoint(lm[index]);}
-function computeDisplayFit(lm){const anchorIdx=[10,152,234,454,33,263,61,291,172,397],pts=anchorIdx.map(i=>displayPoint(lm[i])).filter(Boolean),xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),width=maxX-minX,height=maxY-minY,cx=(displayPoint(lm[10]).x+displayPoint(lm[152]).x+displayPoint(lm[1]).x)/3,cy=(displayPoint(lm[10]).y+displayPoint(lm[152]).y)/2,stageRect=cameraStage.getBoundingClientRect(),g=faceGuide.getBoundingClientRect(),gx=g.left-stageRect.left,gy=g.top-stageRect.top,gw=g.width,gh=g.height,gcx=gx+gw/2,gcy=gy+gh/2,profile=currentStepIndex===1||currentStepIndex===2,chin=currentStepIndex===3,tooFar=height<gh*(profile?.40:chin?.48:.50),tooClose=height>gh*(profile?1.14:1.10)||width>gw*(profile?1.18:1.12)||minY<-24||maxY>cameraStage.clientHeight+24,centerTolX=gw*(profile?.28:chin?.22:.20),centerTolY=gh*(chin?.23:.20),centerOk=Math.abs(cx-gcx)<centerTolX&&Math.abs(cy-gcy)<centerTolY,faceInFrame=minX>-cameraStage.clientWidth*.08&&maxX<cameraStage.clientWidth*1.08&&minY>-cameraStage.clientHeight*.08&&maxY<cameraStage.clientHeight*1.08;return{tooFar,tooClose,centerOk,faceInFrame,width,height,cx,cy,guideW:gw,guideH:gh};}
+function displayPoint(p){
+  if (!p) return null;
+  const sw=cameraStage.clientWidth||1,sh=cameraStage.clientHeight||1;
+  let vw, vh, mirror;
+
+  if (window.BeardTrimAndroid && nativeTracking.lastPacket) {
+    vw = nativeTracking.lastPacket.frameWidth || sw;
+    vh = nativeTracking.lastPacket.frameHeight || sh;
+    mirror = nativeTracking.lastPacket.mirrored;
+  } else {
+    vw = video.videoWidth || sw;
+    vh = video.videoHeight || sh;
+    mirror = currentFacingMode === 'user';
+  }
+
+  const baseScale=Math.max(sw/vw,sh/vh),scale=baseScale*visualZoom,rw=vw*scale,rh=vh*scale,ox=(sw-rw)/2,oy=(sh-rh)/2,baseX=ox+p.x*rw;
+  const isArcore = nativeTracking.lastPacket?.provider === 'arcore-augmented-faces';
+const modeB = window.BEARD_TRIM_MIRROR_MODE === 'B';
+const x = mirror && !(isArcore && modeB) ? sw - baseX : baseX;
+  return{x,y:oy+p.y*rh,z:p.z};
+}
+function P(lm,index){return lm && lm[index] ? displayPoint(lm[index]) : null;}
+function computeDisplayFit(lm){const anchorIdx=[10,152,234,454,33,263,61,291,172,397],pts=anchorIdx.map(i=>displayPoint(lm[i])).filter(Boolean),xs=pts.map(p=>p.x),ys=pts.map(p=>p.y),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),width=maxX-minX,height=maxY-minY,cx=(displayPoint(lm[10]).x+displayPoint(lm[152]).x+displayPoint(lm[1]).x)/3,cy=(displayPoint(lm[10]).y+displayPoint(lm[152]).y)/2,stageRect=cameraStage.getBoundingClientRect(),g=faceGuide.getBoundingClientRect(),gx=g.left-stageRect.left,gy=g.top-stageRect.top,gw=g.width,gh=g.height,gcx=gx+gw/2,gcy=gy+gh/2,pose=STEPS[currentStepIndex]?.id||'front',profile=pose.includes('45')||pose.includes('profile'),chin=pose==='chin-up',tooFar=height<gh*(profile?.40:chin?.48:.50),tooClose=height>gh*(profile?1.14:1.10)||width>gw*(profile?1.18:1.12)||minY<-24||maxY>cameraStage.clientHeight+24,centerTolX=gw*(profile?.28:chin?.22:.20),centerTolY=gh*(chin?.23:.20),centerOk=Math.abs(cx-gcx)<centerTolX&&Math.abs(cy-gcy)<centerTolY,faceInFrame=minX>-cameraStage.clientWidth*.08&&maxX<cameraStage.clientWidth*1.08&&minY>-cameraStage.clientHeight*.08&&maxY<cameraStage.clientHeight*1.08;return{tooFar,tooClose,centerOk,faceInFrame,width,height,cx,cy,guideW:gw,guideH:gh};}
 function computeMetrics(lm){
- const leftCheek=lm[234],rightCheek=lm[454],forehead=lm[10],chin=lm[152],nose=lm[1],leftEye=lm[33],rightEye=lm[263],underLip=lm[17];
+ if (!lm || !lm[454] || !lm[10]) return { ok: false, reason: 'Waiting for face mesh…', state: 'warn' };
+ const leftCheek=lm[234],rightCheek=lm[454],forehead=lm[10],chin=lm[152],nose=lm[1],leftEye=lm[33],rightEye=lm[263];
  const cheekSpan=Math.max(.001,Math.abs(rightCheek.x-leftCheek.x)),faceHeight=Math.max(.001,Math.abs(chin.y-forehead.y));
  const cheekMidX=(leftCheek.x+rightCheek.x)/2,eyeMidY=(leftEye.y+rightEye.y)/2;
- const rawYaw=(nose.x-cheekMidX)/cheekSpan,rawPitch=(nose.y-eyeMidY)/faceHeight;
- const eyeSpan=Math.max(.001,Math.abs(rightEye.x-leftEye.x)),roll=(rightEye.y-leftEye.y)/eyeSpan;
- const leftEyeWidth=Math.max(.001,Math.abs(lm[33].x-lm[133].x)),rightEyeWidth=Math.max(.001,Math.abs(lm[263].x-lm[362].x));
- const eyeCompression=Math.min(leftEyeWidth,rightEyeWidth)/Math.max(leftEyeWidth,rightEyeWidth);
- const noseLeft=Math.max(.001,Math.abs(nose.x-leftCheek.x)),noseRight=Math.max(.001,Math.abs(rightCheek.x-nose.x));
- const cheekBalance=Math.min(noseLeft,noseRight)/Math.max(noseLeft,noseRight);
- const cheekDepthSigned=(leftCheek.z-rightCheek.z)/cheekSpan;
- const faceAspect=cheekSpan/faceHeight,lowerFaceRatio=Math.abs(chin.y-underLip.y)/faceHeight,noseChinRatio=Math.abs(chin.y-nose.y)/faceHeight,verticalDepth=(chin.z-forehead.z)/faceHeight;
- const frontalEye=clamp((eyeCompression-.48)/.42,0,1),frontalBalance=clamp((cheekBalance-.48)/.42,0,1),frontalDepth=1-clamp(Math.abs(cheekDepthSigned)/.38,0,1),frontalRoll=1-clamp(Math.abs(roll)/.24,0,1);
- const frontalScore=clamp(frontalEye*.28+frontalBalance*.28+frontalDepth*.26+frontalRoll*.18,0,1);
- const base=frontCalibration,baseYaw=base?.rawYaw??rawYaw,baseEye=base?.eyeCompression??eyeCompression,baseBalance=base?.cheekBalance??cheekBalance,baseDepth=base?.cheekDepthSigned??cheekDepthSigned;
- const yawDelta=rawYaw-baseYaw,eyeDrop=Math.max(0,baseEye-eyeCompression),balanceDrop=Math.max(0,baseBalance-cheekBalance),depthSignedDelta=cheekDepthSigned-baseDepth,depthDelta=Math.abs(depthSignedDelta);
- const yawStrength=clamp(Math.abs(yawDelta)/.14,0,1),eyeStrength=clamp(eyeDrop/Math.max(.10,baseEye*.20),0,1),balanceStrength=clamp(balanceDrop/Math.max(.11,baseBalance*.22),0,1),depthStrength=clamp(depthDelta/.22,0,1);
- const profileCueCount=[yawStrength>.28,eyeStrength>.24,balanceStrength>.25,depthStrength>.24].filter(Boolean).length;
- const strongest=Math.max(yawStrength,depthStrength),profileScore=clamp(strongest*.44+eyeStrength*.23+balanceStrength*.17+Math.min(1,profileCueCount/3)*.16,0,1);
- const isProfilePose=(profileCueCount>=2&&profileScore>=.28)||yawStrength>=.68||depthStrength>=.68;
- let directionSignal=Math.abs(yawDelta)>.032?yawDelta:depthSignedDelta;if(Math.abs(directionSignal)<.010)directionSignal=(noseLeft-noseRight);const profileDirection=isProfilePose?(directionSignal>=0?1:-1):0;
- const pitchDelta=rawPitch-(base?.rawPitch??rawPitch),lowerCompression=Math.max(0,(base?.lowerFaceRatio??lowerFaceRatio)-lowerFaceRatio),noseChinCompression=Math.max(0,(base?.noseChinRatio??noseChinRatio)-noseChinRatio),verticalDepthDelta=Math.abs(verticalDepth-(base?.verticalDepth??verticalDepth));
- const pitchStrength=clamp((-pitchDelta)/.034,0,1),lowerStrength=clamp(lowerCompression/Math.max(.025,(base?.lowerFaceRatio??lowerFaceRatio)*.13),0,1),noseChinStrength=clamp(noseChinCompression/Math.max(.030,(base?.noseChinRatio??noseChinRatio)*.12),0,1),verticalStrength=clamp(verticalDepthDelta/.11,0,1);
- const chinCueCount=[pitchStrength>.27,lowerStrength>.25,noseChinStrength>.25,verticalStrength>.28].filter(Boolean).length;
- const chinLiftScore=clamp(pitchStrength*.42+lowerStrength*.20+noseChinStrength*.19+verticalStrength*.19+(chinCueCount>=2?.08:0),0,1);
- return{yaw:rawYaw,rawYaw,rawPitch,pitchDelta,roll,eyeCompression,cheekBalance,cheekDepthSigned,faceAspect,lowerFaceRatio,noseChinRatio,verticalDepth,frontalScore,yawDelta,eyeDrop,balanceDrop,depthDelta,profileCueCount,profileScore,isProfilePose,profileDirection,chinLiftScore,chinCueCount,fit:computeDisplayFit(lm)};
+
+ // Estimate degrees from normalized geometry
+ const yawDeg = ((nose.x - cheekMidX) / cheekSpan) * 95;
+ const pitchDeg = ((nose.y - eyeMidY) / faceHeight) * 45;
+ const eyeSpan=Math.max(.001,Math.abs(rightEye.x-leftEye.x)),rollDeg=(rightEye.y-leftEye.y)/eyeSpan * 45;
+
+ return{yawDeg,pitchDeg,rollDeg,fit:computeDisplayFit(lm)};
 }
 function poseReason(m){
  const step=STEPS[currentStepIndex]?.id;
  if(step==='front'){if(Math.abs(m.roll)>.18)return'Level your head a little';if(m.frontalScore<.42)return'Face the camera more directly';return'Hold your natural front pose';}
- if(step==='right-profile'||step==='left-profile'){const right=captures.find(c=>c.id==='right-profile');if(m.isProfilePose&&step==='left-profile'&&right&&right.metrics.profileDirection&&m.profileDirection===right.metrics.profileDirection)return'Turn to the opposite side';if(m.profileCueCount>=1)return'Almost there • keep turning naturally';return'Turn until the outline turns green';}
+ if(step.includes('45')||step.includes('profile')){if(step.startsWith('left')&&!oppositeTurnDirection(m,'right-45'))return'Turn back through center to the opposite side';if(m.profileCueCount>=1)return step.includes('45')?'Hold the halfway angle':'Almost there • keep turning naturally';return'Turn until the outline turns green';}
  if(step==='chin-up'){if(m.isProfilePose)return'Face forward first';if(m.chinCueCount>=1)return'Almost there • lift a little higher';return'Lift your chin until the outline turns green';}
  return STEPS[currentStepIndex]?.poseText||'Adjust your pose';
 }
@@ -756,46 +931,56 @@ function drawDerivedNeck(lm){
  [chin,throat].forEach((pt,i)=>{ctx.beginPath();ctx.arc(pt.x,pt.y,i?4.5:3.6,0,Math.PI*2);ctx.fillStyle=i?'rgba(104,175,244,.12)':'rgba(240,207,131,.10)';ctx.fill();ctx.strokeStyle=i?'rgba(147,211,255,.92)':'rgba(255,232,180,.92)';ctx.lineWidth=1.25;ctx.stroke();});
  ctx.restore();
 }
+let firstFaceMapDrawn = false;
 function drawFaceMap(lm){
  overlayDiagnostics.drawInvocations++;overlayDiagnostics.landmarkCount=lm?.length||0;const{w,h,dpr}=resizeOverlay();ctx.clearRect(0,0,w,h);recordCanvasClear('redraw-before-draw');if(!showMesh||!lm?.length){verifyOverlayPresentation();return;}ctx.save();ctx.globalCompositeOperation='source-over';ctx.scale(dpr,dpr);const step=STEPS[currentStepIndex]?.id||'front';
- const gold='rgba(240,207,131,.96)', goldSoft='rgba(240,207,131,.60)', ice='rgba(146,204,255,.86)', mint='rgba(137,232,188,.82)', pearl='rgba(255,244,219,.96)';
- if(step==='front'){
-  drawScannerContour(lm,FACE_OVAL,{color:'rgba(239,210,144,.92)',width:2.35,closed:true,glow:'rgba(240,207,131,.24)'});
-  drawScannerContour(lm,LOWER_JAW,{color:gold,width:3.0,closed:false,glow:'rgba(240,207,131,.30)'});
-  drawScannerContour(lm,LEFT_EYE,{color:ice,width:1.55,closed:true,glow:'rgba(146,204,255,.18)'});
-  drawScannerContour(lm,RIGHT_EYE,{color:ice,width:1.55,closed:true,glow:'rgba(146,204,255,.18)'});
-  drawScannerContour(lm,LEFT_BROW,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
-  drawScannerContour(lm,RIGHT_BROW,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
-  drawScannerContour(lm,NOSE,{color:pearl,width:1.75,closed:false,glow:'rgba(255,244,219,.18)'});
-  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
-  drawScannerDots(lm,[10,1,61,291,17,152,234,454,172,397],pearl,1.65);
- }else if(step==='right-profile'||step==='left-profile'){
-  const side=visibleProfileSide(lm),outline=side==='left'?LEFT_PROFILE:RIGHT_PROFILE,eye=side==='left'?LEFT_EYE:RIGHT_EYE,brow=side==='left'?LEFT_BROW:RIGHT_BROW;
-  drawScannerContour(lm,outline,{color:gold,width:3.1,closed:false,glow:'rgba(240,207,131,.30)'});
-  drawScannerContour(lm,eye,{color:ice,width:1.5,closed:true,glow:'rgba(146,204,255,.18)'});
-  drawScannerContour(lm,brow,{color:mint,width:1.6,closed:false,glow:'rgba(137,232,188,.16)',alpha:.94});
-  drawScannerContour(lm,NOSE,{color:pearl,width:1.8,closed:false,glow:'rgba(255,244,219,.20)'});
-  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.45,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
-  drawDerivedNeck(lm);
-  drawScannerDots(lm,[10,1,17,152,side==='left'?234:454,side==='left'?172:397],pearl,1.7);
- }else{
-  drawScannerContour(lm,FACE_OVAL,{color:'rgba(239,210,144,.82)',width:2.1,closed:true,glow:'rgba(240,207,131,.18)'});
-  drawScannerContour(lm,LOWER_JAW,{color:gold,width:3.0,closed:false,glow:'rgba(240,207,131,.30)'});
-  drawScannerContour(lm,LEFT_EYE,{color:ice,width:1.45,closed:true,glow:'rgba(146,204,255,.16)'});
-  drawScannerContour(lm,RIGHT_EYE,{color:ice,width:1.45,closed:true,glow:'rgba(146,204,255,.16)'});
-  drawScannerContour(lm,LEFT_BROW,{color:mint,width:1.5,closed:false,glow:'rgba(137,232,188,.14)'});
-  drawScannerContour(lm,RIGHT_BROW,{color:mint,width:1.5,closed:false,glow:'rgba(137,232,188,.14)'});
-  drawScannerContour(lm,NOSE,{color:pearl,width:1.65,closed:false,glow:'rgba(255,244,219,.16)'});
-  drawScannerContour(lm,LIPS,{color:goldSoft,width:1.55,closed:true,glow:'rgba(240,207,131,.12)',alpha:.96});
-  drawDerivedNeck(lm);
-  drawScannerDots(lm,[61,291,17,152,172,397,149,378],pearl,1.75);
- }
+ const gold='rgba(240,207,131,.96)', ice='rgba(146,204,255,.86)', mint='rgba(137,232,188,.82)', pearl='rgba(255,244,219,.96)';
+
+ // Draw semantic contours
+ drawScannerContour(lm, LANDMARK_MAP.jawline, {color: gold, width: 3.0});
+ drawScannerContour(lm, LANDMARK_MAP.leftEye, {color: ice, width: 1.5});
+ drawScannerContour(lm, LANDMARK_MAP.rightEye, {color: ice, width: 1.5});
+ drawScannerContour(lm, LANDMARK_MAP.lips, {color: pearl, width: 1.6, closed: true});
+ drawScannerContour(lm, LANDMARK_MAP.centerline, {color: mint, width: 1.2});
+
  drawDebugLandmarkMarkers(lm);ctx.restore();overlayDiagnostics.lastDrawAt=performance.now();overlayDiagnostics.clearAfterDraw=false;verifyOverlayPresentation();
+ if (!firstFaceMapDrawn) {
+   firstFaceMapDrawn = true;
+   trace('NATIVE_FACE_MAP_DRAW_FIRST', `count=${lm.length}`);
+ }
 }
 function getMatrix(result){const m=result?.facialTransformationMatrixes?.[0];if(!m)return null;if(Array.isArray(m))return[...m];if(m.data)return Array.from(m.data);return null;}
 function pushFrame(lm,metrics,result,quality){frameBuffer.push({ts:performance.now(),landmarks:lm.map(p=>({x:p.x,y:p.y,z:p.z})),metrics:{...metrics},matrix:getMatrix(result),good:quality.ok});if(frameBuffer.length>18)frameBuffer.shift();}
 function loop(){
  if(!running)return;const now=performance.now();
+
+ // Native tracking path
+ if (window.BeardTrimAndroid && nativeTracking.lastPacket && performance.now() - nativeTracking.lastPacket.timestampMs < 200) {
+   const lm = nativeTracking.lastPacket.landmarks;
+   if (lm && lm.length > 0) {
+     overlayDiagnostics.facesDetected = 1;
+     overlayDiagnostics.landmarkCount = lm.length;
+     overlayDiagnostics.lastGoodLandmarksAt = performance.now();
+     lastMetrics = computeMetrics(lm);
+     const q = qualityFor(lastMetrics);
+     // Push frame logic might need adjustment if we want to mix native/browser for six-angle
+     // but for now we follow the user's wish for a real face-locked overlay.
+     drawFaceMap(lm);
+
+     stableFrames = q.ok ? Math.min(stableFrames + 1, 24) : 0;
+     const ready = q.ok && stableFrames >= 4;
+     scannerScreen.classList.toggle('pose-ready', ready);
+     if(ready) poseLockFeedback();
+     setTrackerState(ready ? '✓ Pose locked • capture ready' : q.reason, ready ? 'good' : q.state);
+     shutterBtn.classList.toggle('ready', ready);
+     shutterLabel.textContent = ready ? 'Capture' : (q.ok ? 'Hold still' : 'Position');
+
+     rafId = requestAnimationFrame(loop);
+     return;
+   }
+ }
+
+ // Browser fallback path
  if(video.readyState>=2&&video.currentTime!==lastVideoTime&&now-lastInferenceAt>=36&&!trackerRecovering){
   lastVideoTime=video.currentTime;lastInferenceAt=now;
   if(faceLandmarker){
@@ -817,34 +1002,189 @@ function median(values){const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.leng
 function stabilizedLandmarks(samples){const count=samples[0]?.landmarks?.length||0,out=[];for(let i=0;i<count;i++)out.push({x:median(samples.map(s=>s.landmarks[i].x)),y:median(samples.map(s=>s.landmarks[i].y)),z:median(samples.map(s=>s.landmarks[i].z))});return out;}
 function capturePhoto(){const c=document.createElement('canvas');c.width=video.videoWidth||1280;c.height=video.videoHeight||960;c.getContext('2d').drawImage(video,0,0,c.width,c.height);return{image:c.toDataURL('image/jpeg',.92),width:c.width,height:c.height};}
 function takeCapture(){if(!lastMetrics||!lastResult?.faceLandmarks?.[0])return showToast('I need to see your face first.');const q=qualityFor(lastMetrics);if(!q.ok||stableFrames<4)return showToast(q.reason);const good=frameBuffer.filter(s=>s.good).slice(-12);if(good.length<4)return showToast('Hold still for one more moment.');const photo=capturePhoto(),step=STEPS[currentStepIndex],record={id:step.id,label:step.label,capturedAt:new Date().toISOString(),image:photo.image,imageWidth:photo.width,imageHeight:photo.height,landmarks:stabilizedLandmarks(good),sourceFrameCount:good.length,metrics:{...lastMetrics},transformationMatrix:getMatrix(lastResult),mirrored:currentFacingMode==='user'};captures.push(record);uiHaptic([28,35,28]);if(step.id==='front')frontCalibration={rawPitch:lastMetrics.rawPitch,rawYaw:lastMetrics.rawYaw,eyeCompression:lastMetrics.eyeCompression,cheekBalance:lastMetrics.cheekBalance,cheekDepthSigned:lastMetrics.cheekDepthSigned,faceAspect:lastMetrics.faceAspect,lowerFaceRatio:lastMetrics.lowerFaceRatio,noseChinRatio:lastMetrics.noseChinRatio,verticalDepth:lastMetrics.verticalDepth,neutralRoll:lastMetrics.roll};flash.classList.remove('go');void flash.offsetWidth;flash.classList.add('go');lastThumb.innerHTML=`<img class="${record.mirrored?'mirrored':''}" src="${record.image}" alt="Last capture" />`;stableFrames=0;frameBuffer=[];scanSmoothedLm=null;scanFilterState=null;scannerScreen.classList.remove('pose-ready');if(currentStepIndex<STEPS.length-1){currentStepIndex++;updateStepCopy();setTrackerState('Move into position for the next angle','warn');shutterBtn.classList.remove('ready');}else setTimeout(finishScan,320);}
-function buildScanModel(){const front=captures.find(c=>c.id==='front'),right=captures.find(c=>c.id==='right-profile'),left=captures.find(c=>c.id==='left-profile'),chin=captures.find(c=>c.id==='chin-up');if(!front)return null;const avgProfile=((Math.abs(right?.metrics?.yaw||0)+Math.abs(left?.metrics?.yaw||0))/Math.max(1,(right?1:0)+(left?1:0)));const lift=Math.abs(chin?.metrics?.pitchDelta||-.04),neckDrop=clamp(.17+lift*1.08,.18,.30),throatDrop=clamp(.225+lift*.62,.225,.31);return{landmarkCount:front.landmarks.length,profileTurn:avgProfile,neckDrop,throatDrop,chinLift:lift,angles:{front:front.landmarks,right:right?.landmarks||null,left:left?.landmarks||null,chin:chin?.landmarks||null}};}
-function finishScan(){stopCamera();scanModel=buildScanModel();scanStatusPill.textContent='Scan ready';captureGrid.innerHTML=captures.map(c=>`<div class="capture-card"><img class="${c.mirrored?'mirrored':''}" src="${c.image}" alt="${c.label}"><div class="capture-label">${c.label}</div></div>`).join('');const total=captures.reduce((n,c)=>n+c.sourceFrameCount,0);$('#accuracyTitle').textContent=`${captures.length} angles · ${captures[0]?.landmarks?.length||0} landmarks each`;$('#accuracyText').textContent=`The four saved meshes were stabilized from ${total} recent tracked frames, including jaw, chin and derived throat-center geometry for neckline placement. They stay available for preview masking and live-map registration.`;setScreen('review');}
-function resetScan(){showMesh=true;captures=[];currentStepIndex=0;frontCalibration=null;frameBuffer=[];stableFrames=0;scanModel=null;scanSmoothedLm=null;scanFilterState=null;scanFaceLightOn=false;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');lastThumb.textContent='↺';scanStatusPill.textContent='No scan';aiPreviewCache.clear();updateStepCopy();updateScanLightUI();}
-async function beginScan({reset=true}={}){showMesh=true;if(reset)resetScan();setScreen('scanner');updateStepCopy();setTrackerState('Starting camera…','warn');applyVideoPresentation();startCamera();}
-async function switchCamera(){if(scanTorchOn)await setScanTorch(false);currentFacingMode=currentFacingMode==='user'?'environment':'user';scanTorchOn=false;scanTorchSupported=false;applyVideoPresentation();showToast(currentFacingMode==='user'?'Front camera • Flashlight uses screen light':'Rear camera • Flashlight uses camera torch when available');if(!scannerScreen.classList.contains('hidden'))await startCamera();}
+function buildScanModel(){
+ const byId=id=>captures.find(c=>c.id===id);
+ const front=byId('front'),
+       r34=byId('right-three-quarter'), rProfile=byId('right-profile'),
+       l34=byId('left-three-quarter'), lProfile=byId('left-profile'),
+       chin=byId('chin-up');
+ if(!front) return null;
+
+ return {
+  landmarkCount: front.landmarks.length,
+  poseIds: STEPS.map(s=>s.id),
+  angles: { front: front.landmarks, r34: r34?.landmarks, rProfile: rProfile?.landmarks, l34: l34?.landmarks, lProfile: lProfile?.landmarks, chin: chin?.landmarks }
+ };
+}
+function finishScan(){stopCamera();scanModel=buildScanModel();scanStatusPill.textContent='Scan ready';captureGrid.innerHTML=captures.map(c=>`<div class="capture-card"><img class="${c.mirrored?'mirrored':''}" src="${c.image}" alt="${c.label}"><div class="capture-label">${c.label}</div></div>`).join('');const total=captures.reduce((n,c)=>n+c.sourceFrameCount,0);$('#accuracyTitle').textContent=`${captures.length} angles · ${captures[0]?.landmarks?.length||0} landmarks each`;$('#accuracyText').textContent=`The six distinct pose meshes were stabilized from ${total} recent tracked frames. The 45° references bridge cheek, jaw, sideburn and mustache registration between front and full profile.`;setScreen('review');}
+function resetScan(){try{window.BeardTrimAndroid?.clearSession();}catch(_e){}nativeTracking.lastPacket=null;showMesh=true;captures=[];currentStepIndex=0;frontCalibration=null;frameBuffer=[];stableFrames=0;scanModel=null;scanSmoothedLm=null;scanFilterState=null;scanFaceLightOn=false;scanTorchOn=false;scanTorchSupported=false;scannerScreen.classList.remove('pose-ready');lastThumb.textContent='↺';scanStatusPill.textContent='No scan';aiPreviewCache.clear();updateStepCopy();updateScanLightUI();}
+// Safe tracer for physical-phone debugging
+function trace(tag, data = '') {
+  const msg = `[BEARD_TRACE] ${tag} ${data}`;
+  console.log(msg);
+  if (window.BeardTrimAndroid?.log) {
+    try { window.BeardTrimAndroid.log(msg); } catch(e) {}
+  }
+}
+
+window.onerror = function(msg, url, line, col, error) {
+  trace('GLOBAL_ERROR', `${msg} at ${line}:${col}`);
+  return false;
+};
+
+async function beginScan({reset=true}={}){
+  if (window.trace) window.trace('BEGIN_SCAN_ENTERED', `reset=${reset}`);
+  showMesh=true;
+
+  // IMMEDIATELY navigate to show UI, before any potentially failing work
+  try {
+    if (window.trace) window.trace('SET_SCREEN_SCANNER_BEFORE');
+    setScreen('scanner');
+    if (window.trace) window.trace('SET_SCREEN_SCANNER_AFTER');
+  } catch(e) {
+    if (window.trace) window.trace('SET_SCREEN_ERROR', e.message);
+  }
+
+  // Defer the initialization work so the browser can paint the screen transition
+  setTimeout(() => {
+    try {
+      if (window.trace) window.trace('SCAN_INIT_START');
+      if(reset) resetScan();
+      updateStepCopy();
+      setTrackerState('Preparing camera…','warn');
+      applyVideoPresentation();
+      if (window.trace) window.trace('SCAN_INIT_COMPLETE');
+
+      startCamera();
+    } catch(err) {
+      if (window.trace) window.trace('SCAN_INIT_ERROR', err.message);
+      console.error("BeardTrim: scan initialization failed", err);
+      showCameraError('Initialization Failed', err.message);
+    }
+  }, 100);
+}
+async function switchCamera(){
+ if(scanTorchOn)await setScanTorch(false);
+ currentFacingMode=currentFacingMode==='user'?'environment':'user';
+ scanTorchOn=false;scanTorchSupported=false;
+ applyVideoPresentation();
+ showToast(currentFacingMode==='user'?'Front camera • Flashlight uses screen light':'Rear camera • Flashlight uses camera torch when available');
+ if(!scannerScreen.classList.contains('hidden')) {
+   try { startCamera(); } catch(err) { showCameraError('Switch Failed', err.message); }
+ }
+}
 function adjustScanZoom(delta){visualZoom=clamp(visualZoom+delta,.72,1.25);applyVideoPresentation();}
 
 /* ---------- Professional AI preview ---------- */
 function loadImage(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src;});}
 async function resizedDataUrl(src,maxLong=768,type='image/jpeg',quality=.9){const im=await loadImage(src);const scale=Math.min(1,maxLong/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.max(16,Math.round(im.naturalWidth*scale/16)*16),h=Math.max(16,Math.round(im.naturalHeight*scale/16)*16),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);return{data:c.toDataURL(type,quality),width:w,height:h};}
-function createEditMask(front,width,height){
- const c=document.createElement('canvas');c.width=width;c.height=height;const x=c.getContext('2d');x.fillStyle='rgba(255,255,255,1)';x.fillRect(0,0,width,height);
- const lm=front.landmarks;const xs=lm.map(p=>p.x*width),ys=lm.map(p=>p.y*height),minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys),faceW=maxX-minX,faceH=maxY-minY;
- const noseY=lm[1].y*height,chinY=lm[152].y*height,cx=(lm[234].x+lm[454].x)*.5*width,cy=(noseY+chinY)*.5+faceH*.08,rx=faceW*.68,ry=Math.max(faceH*.40,(chinY-noseY)*.95);
- x.globalCompositeOperation='destination-out';x.beginPath();x.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);x.fill();
- // Sideburn coverage: two extra transparent corridors.
- const l=lm[234],r=lm[454];x.beginPath();x.ellipse(l.x*width, (l.y*height+cy)*.5, faceW*.18, faceH*.34,0,0,Math.PI*2);x.fill();x.beginPath();x.ellipse(r.x*width,(r.y*height+cy)*.5,faceW*.18,faceH*.34,0,0,Math.PI*2);x.fill();
- x.globalCompositeOperation='source-over';return c.toDataURL('image/png');
+function createEditMask(front, width, height) {
+  const c = document.createElement('canvas');
+  c.width = width; c.height = height;
+  const x = c.getContext('2d');
+
+  // Fill black (protected)
+  x.fillStyle = 'black';
+  x.fillRect(0, 0, width, height);
+
+  // Define beard area (allowed edit region)
+  const lm = front.landmarks;
+  const jaw = LANDMARK_MAP.jawline.map(i => lm[i] ? { x: lm[i].x * width, y: lm[i].y * height } : null).filter(Boolean);
+  const mouth = LANDMARK_MAP.lips.map(i => lm[i] ? { x: lm[i].x * width, y: lm[i].y * height } : null).filter(Boolean);
+
+  x.fillStyle = 'white';
+  x.beginPath();
+  // Draw beard mask following jawline and up towards sideburns
+  x.moveTo(jaw[0].x, jaw[0].y);
+  jaw.forEach(p => x.lineTo(p.x, p.y));
+  // Close the loop through cheeks
+  x.lineTo(jaw[jaw.length-1].x, jaw[jaw.length-1].y - height*0.1);
+  x.lineTo(jaw[0].x, jaw[0].y - height*0.1);
+  x.closePath();
+  x.fill();
+
+  return c.toDataURL('image/png');
 }
 function setAIStatus(title,body,{loading=false,button='Generate'}={}){aiPreviewSpinner.classList.toggle('hidden',!loading);aiPreviewCopy.innerHTML=`<b>${title}</b>${body}`;generatePreviewBtn.textContent=button;generatePreviewBtn.disabled=loading;}
 function stylePromptSpec(){const s=currentStyle();return `${selectedCategory==='beards'?'beard':selectedCategory==='mustaches'?'mustache':'sideburn'} style: ${s.name}. ${s.copy}`;}
 async function generateProfessionalPreview({automatic=false}={}){
- const front=captures.find(c=>c.id==='front');if(!front)return showToast('Complete the face scan first.');const cacheKey=`${selectedCategory}:${selectedStyle}`;if(aiPreviewCache.has(cacheKey)){previewImage.src=aiPreviewCache.get(cacheKey);previewImage.classList.toggle('mirrored',!!front.mirrored);previewModeLabel.textContent='Professional AI preview';setAIStatus('Professional preview ready','This result is cached for this scan and style.',{button:'Regenerate'});return;}
- if(previewAbort)previewAbort.abort();previewAbort=new AbortController();setAIStatus('Rendering realistic facial hair…','Using your front scan as the edit target and the other scan angles as geometry references so the preview keeps your real face shape.',{loading:true,button:'Working…'});previewModeLabel.textContent='Generating…';
- try{
-  const base=await resizedDataUrl(front.image,768,'image/jpeg',.94);const refs=[];for(const c of captures.filter(c=>c.id!=='front').slice(0,3))refs.push((await resizedDataUrl(c.image,768,'image/jpeg',.9)).data);const geometry=scanModel?{profileTurn:+Number(scanModel.profileTurn||0).toFixed(3),neckDrop:+Number(scanModel.neckDrop||0).toFixed(3),throatDrop:+Number(scanModel.throatDrop||0).toFixed(3),chinLift:+Number(scanModel.chinLift||0).toFixed(3)}:null;const res=await fetch('/api/render-preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({base:base.data,references:refs,category:selectedCategory,styleId:selectedStyle,styleName:currentStyle().name,styleDescription:currentStyle().copy,landmarkCount:front.landmarks.length,scanAngles:captures.length,mirrored:!!front.mirrored,geometry}),signal:previewAbort.signal});
-  const data=await res.json().catch(()=>({}));if(!res.ok)throw Object.assign(new Error(data.message||`Preview service error ${res.status}`),{code:data.code});if(!data.image)throw new Error('Preview service returned no image.');aiPreviewCache.set(cacheKey,data.image);previewImage.src=data.image;previewImage.classList.toggle('mirrored',!!front.mirrored);previewModeLabel.textContent='Professional AI preview';setAIStatus('Professional preview ready','Generated from your scan references with the selected style placed on your real face while preserving your bone structure.',{button:'Regenerate'});
- }catch(err){if(err.name==='AbortError')return;console.error(err);previewImage.src=front.image;previewImage.classList.toggle('mirrored',!!front.mirrored);previewModeLabel.textContent='Original scan shown';if(err.code==='CONFIG_MISSING')setAIStatus('AI preview needs one-time setup','The Cloudflare Worker needs its Workers AI binding named AI. This build includes that binding in wrangler.jsonc.',{button:'Retry'});else if(err.code==='AUTH_FAILED')setAIStatus('Cloudflare authorization failed','The Workers AI binding could not authorize the request. Confirm the AI binding is named AI and redeploy the Worker.',{button:'Retry'});else if(err.code==='CLOUDFLARE_ROUTE_ERROR')setAIStatus('Cloudflare model route error','The Worker could not reach the FLUX model through its Workers AI binding.',{button:'Retry'});else if(err.code==='quota_exceeded'||/quota|neurons|limit reached/i.test(err.message||''))setAIStatus('Cloudflare AI usage limit reached','Your Cloudflare Workers AI allowance appears to be exhausted. Wait for the daily reset or upgrade the account, then tap Retry.',{button:'Retry'});else if(/404/.test(err.message||''))setAIStatus('AI preview backend is not deployed','The Cloudflare API Worker route is missing. Deploy the full Cloudflare-native project, not just index.html.',{button:'Retry'});else setAIStatus('Preview could not finish',err.message||'The image renderer did not respond. The app kept the original scan instead of showing a fake painted beard.',{button:'Retry'});if(!automatic)showToast('Professional preview was not generated.');}
+ const front=captures.find(c=>c.id==='front');if(!front)return showToast('Complete the face scan first.');
+ const cacheKey=`${selectedCategory}:${selectedStyle}`;
+ if(aiPreviewCache.has(cacheKey)){
+  previewImage.src=aiPreviewCache.get(cacheKey);
+  previewImage.classList.toggle('mirrored',!!front.mirrored);
+  setAIStatus('Professional preview ready','Identity-preserved localized edit applied.',{button:'Regenerate'});
+  return;
+ }
+
+ if(previewAbort)previewAbort.abort();
+ previewAbort=new AbortController();
+ setAIStatus('Rendering realistic facial hair…','Identity-preserving localized edit in progress...', {loading:true, button:'Working…'});
+
+ try {
+  const base=await resizedDataUrl(front.image, 1024, 'image/jpeg', 0.98); // High res source
+  const mask = createEditMask(front, base.width, base.height);
+
+  const API_BASE = window.BeardTrimAndroid ? 'https://beardtrimmap.com' : '';
+  const res=await fetch(`${API_BASE}/api/render-preview`,{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({
+      base:base.data,
+      mask:mask,
+      category:selectedCategory,
+      styleId:selectedStyle,
+      styleName:currentStyle().name,
+      styleDescription:currentStyle().copy,
+      mirrored:!!front.mirrored
+    }),
+    signal:previewAbort.signal
+  });
+
+  const data=await res.json();
+  if(!res.ok) throw new Error(data.message || 'Worker error');
+
+  // Pixel restoration: keep original eyes, nose, forehead, background
+  const restored = await restoreProtectedPixels(base.data, data.image, mask);
+
+  aiPreviewCache.set(cacheKey, restored);
+  previewImage.src = restored;
+  previewImage.classList.toggle('mirrored', !!front.mirrored);
+  setAIStatus('Professional preview ready', 'Identity-preserved localized edit applied.', {button:'Regenerate'});
+ } catch(err) {
+  if(err.name==='AbortError') return;
+  console.error('AI Preview Failed:', err);
+  setAIStatus('Preview could not finish', err.message, {button:'Retry'});
+ }
+}
+
+async function restoreProtectedPixels(originalDataUrl, generatedDataUrl, maskDataUrl) {
+  const [orig, gen, mask] = await Promise.all([
+    loadImage(originalDataUrl),
+    loadImage(generatedDataUrl),
+    loadImage(maskDataUrl)
+  ]);
+  const c = document.createElement('canvas');
+  c.width = orig.width; c.height = orig.height;
+  const x = c.getContext('2d');
+
+  // 1. Draw generated image first
+  x.drawImage(gen, 0, 0, c.width, c.height);
+
+  // 2. Draw original pixels where mask is black (protected)
+  x.globalCompositeOperation = 'destination-over'; // Fallback
+  // Better: use the mask to punch a hole and draw original underneath
+  const temp = document.createElement('canvas');
+  temp.width = c.width; temp.height = c.height;
+  const tx = temp.getContext('2d');
+  tx.drawImage(mask, 0, 0, c.width, c.height);
+  tx.globalCompositeOperation = 'source-in';
+  tx.drawImage(orig, 0, 0, c.width, c.height);
+
+  x.globalCompositeOperation = 'source-over';
+  x.drawImage(temp, 0, 0); // Put protected original pixels on top
+
+  return c.toDataURL('image/jpeg', 0.95);
 }
 function scheduleProfessionalPreview(){clearTimeout(previewTimer);const front=captures.find(c=>c.id==='front');if(!front)return;previewImage.src=front.image;previewImage.classList.toggle('mirrored',!!front.mirrored);previewModeLabel.textContent='Preparing selected style';setAIStatus('Professional AI preview',`Ready to render ${currentStyle().name} realistically with Cloudflare Workers AI.`,{button:'Generate'});previewTimer=setTimeout(()=>generateProfessionalPreview({automatic:true}),700);}
 
@@ -888,21 +1228,67 @@ async function toggleLiveFaceLight(){
 }
 async function toggleLiveTorch(){const wanted=!liveTorchOn;const ok=await setLiveTorch(wanted);showToast(ok?(wanted?'Flashlight on':'Flashlight off'):'Flashlight is not available on this camera');}
 function applyLiveVideoPresentation(){const mirror=liveFacingMode==='user'?-1:1;liveVideo.style.transform=`scaleX(${mirror}) scale(${liveZoom})`;liveZoomLabel.textContent=`${liveZoom.toFixed(2)}×`;updateLiveLightUI();}
-async function startLiveMap(){if(!captures.length)return showToast('Complete a face scan first.');setScreen('live');liveStepIndex=0;smoothedLiveLm=null;liveFilterState=null;liveLastGoodLm=null;livePrevGoodLm=null;liveLastGoodAt=0;livePrevGoodAt=0;liveViewMode='front';liveTrackingState='paused';liveAffineState=null;livePrecisionOk=false;livePrecisionStable=0;liveRegistrationError=Infinity;livePrecisionReason='Calibrating scan registration';liveFaceLightOn=false;liveTorchOn=false;liveTorchSupported=false;liveMapScreen.classList.remove('step-minimized');liveStepRestoreBtn.classList.add('hidden');updateLiveStepUI();applyLiveVideoPresentation();await startLiveCamera();}
-async function startLiveCamera(){try{stopLiveCamera();liveMapStatus.textContent='Starting precision face tracking…';liveMapStatus.className='live-map-status coasting';liveStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:liveFacingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60,max:60}},audio:false});liveVideo.srcObject=liveStream;await new Promise(resolve=>{if(liveVideo.readyState>=1)return resolve();liveVideo.addEventListener('loadedmetadata',resolve,{once:true});});await liveVideo.play();applyLiveVideoPresentation();refreshLiveTorchSupport();await ensureLiveTracker();liveRunning=true;liveLastVideoTime=-1;liveLastInferenceAt=0;liveInferenceInterval=30;liveLoop();}catch(err){console.error(err);liveMapStatus.textContent='Camera unavailable. Check permission and retry.';liveMapStatus.className='live-map-status paused';}}
-function stopLiveCamera(){liveRunning=false;if(liveRafId)cancelAnimationFrame(liveRafId);liveRafId=null;const oldStream=liveStream;if(oldStream){const track=oldStream.getVideoTracks?.()[0];if(liveTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});oldStream.getTracks().forEach(t=>t.stop());liveStream=null;}liveVideo.srcObject=null;smoothedLiveLm=null;liveFilterState=null;liveLastGoodLm=null;livePrevGoodLm=null;liveLastGoodAt=0;livePrevGoodAt=0;liveAffineState=null;livePrecisionOk=false;livePrecisionStable=0;liveRegistrationError=Infinity;livePrecisionReason='Waiting for scan registration';liveTorchOn=false;liveTorchSupported=false;updateLiveLightUI();}
+async function startLiveMap(){
+  if(!captures.length)return showToast('Complete a face scan first.');
+  console.log("BeardTrim: startLiveMap");
+  setScreen('live');
+  liveStepIndex=0;smoothedLiveLm=null;liveFilterState=null;liveLastGoodLm=null;livePrevGoodLm=null;liveLastGoodAt=0;livePrevGoodAt=0;liveViewMode='front';liveTrackingState='paused';liveAffineState=null;livePrecisionOk=false;livePrecisionStable=0;liveRegistrationError=Infinity;livePrecisionReason='Calibrating scan registration';liveFaceLightOn=false;liveTorchOn=false;liveTorchSupported=false;liveMapScreen.classList.remove('step-minimized');liveStepRestoreBtn.classList.add('hidden');
+  updateLiveStepUI();applyLiveVideoPresentation();
+  setTimeout(() => {
+    try {
+      startLiveCamera();
+    } catch(err) {
+      console.error("BeardTrim: startLiveCamera failed", err);
+      liveMapStatus.textContent='Startup Error: ' + err.message;
+    }
+  }, 50);
+}
+async function startLiveCamera(){
+  console.log("BeardTrim: startLiveCamera entry");
+  if(window.BeardTrimAndroid){
+    console.log("BeardTrim: bridge detected in live-map");
+    document.body.classList.add('native-active');
+    try {
+      const result = window.BeardTrimAndroid.startTracking(liveFacingMode);
+      console.log("BeardTrim: live-map start result:", result);
+      if (result === 'started') {
+        liveRunning = true;
+        ensureLiveTracker();
+        liveLoop();
+      } else if (result === 'starting' || result === 'permission-pending') {
+        liveMapStatus.textContent= result === 'starting' ? 'Starting camera…' : 'Waiting for permission…';
+      } else {
+        handleNativeStateChange(result);
+      }
+    } catch(err) {
+      console.error("BeardTrim: live-map bridge call failed", err);
+      liveMapStatus.textContent='Bridge Error';
+    }
+    return;
+  }
+  console.log("BeardTrim: falling back to browser live-camera");
+  try{stopLiveCamera();liveMapStatus.textContent='Starting precision face tracking…';liveMapStatus.className='live-map-status coasting';liveStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:liveFacingMode},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60,max:60}},audio:false});liveVideo.srcObject=liveStream;await new Promise(resolve=>{if(liveVideo.readyState>=1)return resolve();liveVideo.addEventListener('loadedmetadata',resolve,{once:true});});await liveVideo.play();applyLiveVideoPresentation();refreshLiveTorchSupport();await ensureLiveTracker();liveRunning=true;liveLastVideoTime=-1;lastInferenceAt=0;liveInferenceInterval=30;liveLoop();}catch(err){console.error(err);liveMapStatus.textContent='Camera unavailable. Check permission and retry.';liveMapStatus.className='live-map-status paused';}}
+function stopLiveCamera(){
+  liveRunning=false;
+  if(window.BeardTrimAndroid){
+    window.BeardTrimAndroid.stopTracking();
+    window.BeardTrimAndroid.setTransparency(false);
+    document.body.classList.remove('native-active');
+  }
+  if(liveRafId)cancelAnimationFrame(liveRafId);liveRafId=null;const oldStream=liveStream;if(oldStream){const track=oldStream.getVideoTracks?.()[0];if(liveTorchOn&&track?.applyConstraints)track.applyConstraints({advanced:[{torch:false}]}).catch(()=>{});oldStream.getTracks().forEach(t=>t.stop());liveStream=null;}liveVideo.srcObject=null;smoothedLiveLm=null;liveFilterState=null;liveLastGoodLm=null;livePrevGoodLm=null;liveLastGoodAt=0;livePrevGoodAt=0;liveAffineState=null;livePrecisionOk=false;livePrecisionStable=0;liveRegistrationError=Infinity;livePrecisionReason='Waiting for scan registration';liveTorchOn=false;liveTorchSupported=false;updateLiveLightUI();}
 function filterAlpha(cutoff,dt){const tau=1/(2*Math.PI*Math.max(.001,cutoff));return 1/(1+tau/Math.max(.001,dt));}
 function filterCoord(raw,state,dt,minCutoff=1.55,beta=.62,dCutoff=1.0){const dx=(raw-state.raw)/Math.max(.001,dt),ad=filterAlpha(dCutoff,dt),dxHat=ad*dx+(1-ad)*state.dx,cutoff=minCutoff+beta*Math.abs(dxHat),a=Math.max(filterAlpha(cutoff,dt),Math.abs(raw-state.filtered)>.018?.72:0),filtered=a*raw+(1-a)*state.filtered;state.raw=raw;state.filtered=filtered;state.dx=dxHat;return filtered;}
 function precisionFilterLandmarks(lm,now){
- if(!liveFilterState||liveFilterState.points.length!==lm.length){liveFilterState={time:now,points:lm.map(p=>({x:{raw:p.x,filtered:p.x,dx:0},y:{raw:p.y,filtered:p.y,dx:0},z:{raw:p.z,filtered:p.z,dx:0}}))};return lm.map(p=>({...p}));}
+ if(!lm) return null;
+ if(!liveFilterState||liveFilterState.points.length!==lm.length){liveFilterState={time:now,points:lm.map(p=>({x:{raw:p?.x||0,filtered:p?.x||0,dx:0},y:{raw:p?.y||0,filtered:p?.y||0,dx:0},z:{raw:p?.z||0,filtered:p?.z||0,dx:0}}))};return lm.map(p=>({...p}));}
  const dt=clamp((now-liveFilterState.time)/1000,.008,.10);liveFilterState.time=now;
- return lm.map((p,i)=>{const st=liveFilterState.points[i];return{x:filterCoord(p.x,st.x,dt,2.95,1.06,1.18),y:filterCoord(p.y,st.y,dt,2.85,1.02,1.18),z:filterCoord(p.z,st.z,dt,1.70,.50,1.02)};});
+ return lm.map((p,i)=>{const st=liveFilterState.points[i]; if (!p || !st) return p; return{x:filterCoord(p.x,st.x,dt,2.95,1.06,1.18),y:filterCoord(p.y,st.y,dt,2.85,1.02,1.18),z:filterCoord(p.z,st.z,dt,1.70,.50,1.02)};});
 }
 function predictLiveLandmarks(now){
  if(!liveLastGoodLm)return null;if(!livePrevGoodLm||livePrevGoodAt<=0)return liveLastGoodLm;
  const baseDt=Math.max(.016,(liveLastGoodAt-livePrevGoodAt)/1000),ahead=clamp((now-liveLastGoodAt)/1000,0,.065);
  if(ahead<=.003)return liveLastGoodLm;
- return liveLastGoodLm.map((p,i)=>{const prev=livePrevGoodLm[i]||p,vx=clamp((p.x-prev.x)/baseDt,-.30,.30),vy=clamp((p.y-prev.y)/baseDt,-.30,.30),vz=clamp((p.z-prev.z)/baseDt,-.22,.22);return{x:p.x+vx*ahead,y:p.y+vy*ahead,z:p.z+vz*ahead};});
+ return liveLastGoodLm.map((p,i)=>{const prev=livePrevGoodLm[i]||p; if (!p || !prev) return p; const vx=clamp((p.x-prev.x)/baseDt,-.30,.30),vy=clamp((p.y-prev.y)/baseDt,-.30,.30),vz=clamp((p.z-prev.z)/baseDt,-.22,.22);return{x:p.x+vx*ahead,y:p.y+vy*ahead,z:p.z+vz*ahead};});
 }
 function resizeLiveCanvas(){
  const rect=liveMapStage.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));
@@ -910,11 +1296,22 @@ function resizeLiveCanvas(){
  return{w,h,dpr,cssW:rect.width,cssH:rect.height};
 }
 function liveDisplayPoint(p){
- const sw=liveMapStage.clientWidth||1,sh=liveMapStage.clientHeight||1,vw=liveVideo.videoWidth||sw,vh=liveVideo.videoHeight||sh;
+ if (!p) return null;
+ const sw=liveMapStage.clientWidth||1,sh=liveMapStage.clientHeight||1;
+ let vw, vh, mirror;
+ if (window.BeardTrimAndroid && nativeTracking.lastPacket) {
+   vw = nativeTracking.lastPacket.frameWidth || sw;
+   vh = nativeTracking.lastPacket.frameHeight || sh;
+   mirror = nativeTracking.lastPacket.mirrored;
+ } else {
+   vw = liveVideo.videoWidth || sw;
+   vh = liveVideo.videoHeight || sh;
+   mirror = liveFacingMode === 'user';
+ }
  const cover=Math.max(sw/vw,sh/vh),rw=vw*cover,rh=vh*cover,ox=(sw-rw)/2,oy=(sh-rh)/2,cx=sw/2,cy=sh/2;
  let x=ox+p.x*rw,y=oy+p.y*rh;
  x=cx+(x-cx)*liveZoom;y=cy+(y-cy)*liveZoom;
- if(liveFacingMode==='user')x=sw-x;
+ if(mirror)x=sw-x;
  return{x,y,z:p.z};
 }
 function livePoseSignals(lm){
@@ -924,11 +1321,11 @@ function livePoseSignals(lm){
  return{yaw,eyeRatio,profileStrength,pitchDelta,side:liveVisibleSide(lm)};
 }
 function updateLiveViewMode(lm){
- const sig=livePoseSignals(lm),side=sig.side==='left'?'left-profile':'right-profile';let next=liveViewMode;
- if(liveViewMode==='chin-up'){if(sig.pitchDelta>-.022)next=sig.profileStrength>.50?side:'front';}
+ const sig=livePoseSignals(lm),sideName=sig.side==='left'?'left':'right',side=sig.profileStrength>.72?`${sideName}-profile`:`${sideName}-45`;let next=liveViewMode;
+ if(liveViewMode==='chin-up'){if(sig.pitchDelta>-.022)next=sig.profileStrength>.34?side:'front';}
  else if(sig.pitchDelta<-.055&&sig.profileStrength<.72)next='chin-up';
- else if(liveViewMode==='front'){if(sig.profileStrength>.50)next=side;}
- else if(liveViewMode==='left-profile'||liveViewMode==='right-profile'){if(sig.profileStrength<.32)next='front';else next=side;}
+ else if(liveViewMode==='front'){if(sig.profileStrength>.38)next=side;}
+ else if(liveViewMode.includes('45')||liveViewMode.includes('profile')){if(sig.profileStrength<.30)next='front';else next=side;}
  if(next!==liveViewMode){liveViewMode=next;liveAffineState=null;}
  return liveViewMode;
 }
@@ -952,10 +1349,11 @@ function applyAffine(c,p){return{x:c[0]*p.x+c[1]*p.y+c[2],y:c[3]*p.x+c[4]*p.y+c[
 function referenceCaptureForLive(lm){
  if(liveViewMode==='chin-up')return captures.find(c=>c.id==='chin-up')||captures.find(c=>c.id==='front');
  if(liveViewMode==='front')return captures.find(c=>c.id==='front');
- const yaw=liveYaw(lm),profiles=captures.filter(c=>c.id==='right-profile'||c.id==='left-profile');return profiles.find(c=>Math.sign(c.metrics?.yaw||0)===Math.sign(yaw))||profiles[0]||captures.find(c=>c.id==='front');
+ const yaw=liveYaw(lm),wanted45=liveViewMode.includes('45'),candidates=captures.filter(c=>wanted45?c.id.includes('45'):c.id.includes('profile'));return candidates.find(c=>Math.sign(c.metrics?.yaw||0)===Math.sign(yaw))||candidates[0]||captures.find(c=>c.id==='front');
 }
 function registrationAnchors(view,side){
  if(view==='chin-up')return[1,61,291,152,172,397,234,454,17,18,200,421,57,287];
+ if(view.includes('45'))return[1,10,33,263,61,291,152,234,454,172,397,17,93,323,57,287,136,365];
  if(view==='left-profile')return[1,152,10,234,93,132,58,172,136,150,61,33,160,158,17];
  if(view==='right-profile')return[1,152,10,454,323,361,288,397,365,379,291,263,385,387,17];
  return[1,10,33,263,61,291,152,234,454,172,397,17,93,323,57,287,136,365];
@@ -971,7 +1369,8 @@ function refJawRight(lm,map= p=>p){return[152,377,400,378,379,365,397,288,361,32
 function offsetPoints(points,dx,dy){return points.map(p=>({x:p.x+dx,y:p.y+dy}));}
 function lobeShape(a,c1,c2,b,d1,d2,n=18){return[...cubicPts(a,c1,c2,b,n),...cubicPts(b,d1,d2,a,n)];}
 function chaikin(points,closed=true,passes=2){
- let pts=points?.map(p=>({x:p.x,y:p.y}))||[];if(pts.length<3)return pts;
+ let pts=(points||[]).filter(p=>p && typeof p.x === 'number').map(p=>({x:p.x,y:p.y}));
+ if(pts.length<3)return pts;
  for(let pass=0;pass<passes;pass++){
   const out=[];
   if(closed){
@@ -1144,11 +1543,18 @@ function traceSmoothPath(ctx2,pts,closed=true){
  if(!pts?.length)return;
  const smooth=chaikin(pts,closed,pts.length<10?2:1);
  if(smooth.length===1){ctx2.beginPath();ctx2.arc(smooth[0].x,smooth[0].y,1,0,Math.PI*2);return;}
- const work=closed?[smooth[smooth.length-1],...smooth,smooth[0],smooth[1]||smooth[0]]:[smooth[0],...smooth,smooth[smooth.length-1]];
- ctx2.beginPath();ctx2.moveTo(smooth[0].x,smooth[0].y);
- const start=closed?1:0,end=closed?smooth.length+1:smooth.length-1;
- for(let i=start;i<end;i++){
-  const p0=work[i-1],p1=work[i],p2=work[i+1],p3=work[i+2]||p2;
+
+ // Robust path tracing with bounds protection
+ const work=closed ? [smooth[smooth.length-1],...smooth,smooth[0],smooth[1]||smooth[0]] : [smooth[0],...smooth,smooth[smooth.length-1]];
+ ctx2.beginPath();
+ ctx2.moveTo(smooth[0].x,smooth[0].y);
+
+ const start = closed ? 1 : 1;
+ const end = closed ? smooth.length + 1 : smooth.length;
+
+ for(let i=start; i<end; i++){
+  const p0=work[i-1], p1=work[i], p2=work[i+1], p3=work[i+2]||p2;
+  if (!p0 || !p1 || !p2) continue;
   const cp1={x:p1.x+(p2.x-p0.x)/6,y:p1.y+(p2.y-p0.y)/6};
   const cp2={x:p2.x-(p3.x-p1.x)/6,y:p2.y-(p3.y-p1.y)/6};
   ctx2.bezierCurveTo(cp1.x,cp1.y,cp2.x,cp2.y,p2.x,p2.y);
@@ -1169,9 +1575,39 @@ function drawFinalLine(ctx2,poly){if(!poly?.length)return;const b=regionBounds(p
 function updateLiveStepUI(){const steps=guardSequence();liveStepIndex=clamp(liveStepIndex,0,steps.length-1);const step=steps[liveStepIndex],[r,g,b]=step.rgb;liveStepTitle.textContent=`Step ${liveStepIndex+1} · ${step.label}`;liveGuardBadge.textContent=step.label.toUpperCase();liveGuardBadge.style.color=`rgb(${r},${g},${b})`;liveSolidLegend.style.background=`rgba(${r},${g},${b},.68)`;liveFadeLegend.style.background=`rgba(${r},${g},${b},.20)`;liveProgress.innerHTML=steps.map((_,i)=>`<span class="${i<liveStepIndex?'done':''} ${i===liveStepIndex?'active':''}"></span>`).join('');liveStepCopy.textContent=step.id==='shave'?'Use the final line/shave step only on the highlighted cleanup area. The bright pearl contour is your final style boundary.':'The softly tinted area is this guard now. The lighter tint is safe overlap that will receive a shorter guard later. Follow the thin pearl contour for the shape.';if(!liveStepRestoreBtn.classList.contains('hidden'))liveStepRestoreBtn.textContent=`${liveStepIndex+1}/${steps.length} · ${step.label} · Show step ▴`;}
 function drawStencilRegion(ctx2,poly,alpha=1){if(!poly?.length)return;ctx2.save();strokeRegion(ctx2,poly,`rgba(120,215,228,${.11*alpha})`,1.8,true);strokeRegion(ctx2,poly,`rgba(229,250,253,${.20*alpha})`,.66,true);ctx2.restore();}
 function drawLiveMap(lm,{tracking='locked',now=performance.now()}={}){
+ if (!lm) return;
  const{w,h,dpr}=resizeLiveCanvas();liveCtx.clearRect(0,0,w,h);liveCtx.save();liveCtx.scale(dpr,dpr);const steps=guardSequence(),step=steps[liveStepIndex],[r,g,b]=step.rgb,regions=liveRegions(lm,now),order=['long','medium','short'],idx=order.indexOf(step.id),solid=regions[step.id]||[],future=idx>=0?order.slice(idx+1).flatMap(k=>regions[k]||[]):[],effectiveTracking=livePrecisionOk?tracking:'paused',active=effectiveTracking!=='paused',masterAlpha=effectiveTracking==='locked'?1:effectiveTracking==='coasting'?.72:.12;liveCtx.globalAlpha=masterAlpha;(regions.silhouette||[]).forEach(poly=>drawStencilRegion(liveCtx,poly,tracking==='paused'?.48:1));if(active){if(step.id==='shave'){(regions.shave||[]).forEach(poly=>drawStyledRegion(liveCtx,poly,[r,g,b],{solid:true}));}else{future.forEach(poly=>drawStyledRegion(liveCtx,poly,[r,g,b],{solid:false}));solid.forEach(poly=>drawStyledRegion(liveCtx,poly,[r,g,b],{solid:true}));}}(regions.outlines||[]).forEach(line=>drawFinalLine(liveCtx,line));liveCtx.restore();}
 function liveLoop(){
  if(!liveRunning)return;const now=performance.now();
+
+ // Native tracking path for Live Map
+ if (window.BeardTrimAndroid && nativeTracking.lastPacket && performance.now() - nativeTracking.lastPacket.timestampMs < 200) {
+   const lm = nativeTracking.lastPacket.landmarks;
+   if (lm && lm.length > 0) {
+     const filtered = precisionFilterLandmarks(lm, now);
+     livePrevGoodLm = liveLastGoodLm;
+     livePrevGoodAt = liveLastGoodAt;
+     liveLastGoodLm = filtered;
+     liveLastGoodAt = now;
+     updateLiveViewMode(filtered);
+
+     const age = now - liveLastGoodAt;
+     const pred = predictLiveLandmarks(now);
+     if (pred) {
+       let tracking = 'locked'; if (age > 180) tracking = 'coasting'; if (age > 520) tracking = 'paused';
+       liveTrackingState = tracking;
+       drawLiveMap(pred, {tracking, now});
+
+       if(!livePrecisionOk){liveMapStatus.textContent=`PRECISION PAUSED • DO NOT TRIM • ${livePrecisionReason}`;liveMapStatus.className='live-map-status paused';}
+       else if(tracking==='locked'){const view=liveViewMode==='front'?'Front':liveViewMode==='left-45'?'45° left':liveViewMode==='right-45'?'45° right':liveViewMode==='left-profile'?'Left profile':liveViewMode==='right-profile'?'Right profile':'Chin-up';liveMapStatus.textContent=`${view} precision locked • scan-registered contour`;liveMapStatus.className='live-map-status locked';}
+       else if(tracking==='coasting'){liveMapStatus.textContent='Tracking through a brief occlusion • do not move the trimmer yet';liveMapStatus.className='live-map-status coasting';}
+       else{liveMapStatus.textContent='PRECISION PAUSED • DO NOT TRIM • reacquiring your face';liveMapStatus.className='live-map-status paused';}
+     }
+     liveRafId = requestAnimationFrame(liveLoop);
+     return;
+   }
+ }
+
  if(liveVideo.readyState>=2&&liveVideo.currentTime!==liveLastVideoTime&&now-liveLastInferenceAt>=liveInferenceInterval){
   liveLastVideoTime=liveVideo.currentTime;liveLastInferenceAt=now;
   try{const t0=performance.now(),result=liveLandmarker?.detectForVideo(liveVideo,now),inferMs=performance.now()-t0,lm=result?.faceLandmarks?.[0];liveInferenceInterval=clamp(inferMs*1.05+6,18,34);if(lm){const filtered=precisionFilterLandmarks(lm,now);livePrevGoodLm=liveLastGoodLm;livePrevGoodAt=liveLastGoodAt;liveLastGoodLm=filtered;liveLastGoodAt=now;updateLiveViewMode(filtered);}}catch(err){console.error(err);}
@@ -1180,7 +1616,7 @@ function liveLoop(){
  if(pred){
   let tracking='locked';if(age>180)tracking='coasting';if(age>520)tracking='paused';liveTrackingState=tracking;drawLiveMap(pred,{tracking,now});
   if(!livePrecisionOk){liveMapStatus.textContent=`PRECISION PAUSED • DO NOT TRIM • ${livePrecisionReason}`;liveMapStatus.className='live-map-status paused';}
-  else if(tracking==='locked'){const view=liveViewMode==='front'?'Front':liveViewMode==='left-profile'?'Left profile':liveViewMode==='right-profile'?'Right profile':'Chin-up';liveMapStatus.textContent=`${view} precision locked • scan-registered contour`;liveMapStatus.className='live-map-status locked';}
+  else if(tracking==='locked'){const view=liveViewMode==='front'?'Front':liveViewMode==='left-45'?'45° left':liveViewMode==='right-45'?'45° right':liveViewMode==='left-profile'?'Left profile':liveViewMode==='right-profile'?'Right profile':'Chin-up';liveMapStatus.textContent=`${view} precision locked • scan-registered contour`;liveMapStatus.className='live-map-status locked';}
   else if(tracking==='coasting'){liveMapStatus.textContent='Tracking through a brief occlusion • do not move the trimmer yet';liveMapStatus.className='live-map-status coasting';}
   else{liveMapStatus.textContent='PRECISION PAUSED • DO NOT TRIM • reacquiring your face';liveMapStatus.className='live-map-status paused';}
  }else{const{w,h}=resizeLiveCanvas();liveCtx.clearRect(0,0,w,h);livePrecisionOk=false;livePrecisionStable=0;liveMapStatus.textContent='PRECISION PAUSED • center your face in the mirror';liveMapStatus.className='live-map-status paused';}
@@ -1193,9 +1629,33 @@ function adjustLiveZoom(delta){liveZoom=clamp(liveZoom+delta,.72,1.25);applyLive
 document.addEventListener('pointerdown',(event)=>{const target=event.target.closest('button,summary');if(!target||target.disabled)return;uiClickSound();uiHaptic(6);},{passive:true});
 
 /* ---------- events ---------- */
-$('#startScanBtn').addEventListener('click',()=>beginScan({reset:true}));$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));$('#retryCameraBtn').addEventListener('click',startCamera);$('#shutterBtn').addEventListener('click',takeCapture);$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face tracking visible':'Face tracking hidden');if(!showMesh)clearScannerOverlay('user-toggle');});$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for Face locked, then tap the shutter.'));$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));$('#useScanBtn').addEventListener('click',openStyles);
-$$('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{if(btn.dataset.screen==='home')setScreen('home');if(btn.dataset.screen==='scan')beginScan({reset:true});if(btn.dataset.screen==='styles')openStyles();}));
+const startScanBtn = $('#startScanBtn');
+if (startScanBtn) {
+  if (window.trace) window.trace('SCAN_ELEMENT_FOUND');
+  startScanBtn.addEventListener('click',()=>{
+    if (window.trace) window.trace('SCAN_TAP_RECEIVED');
+    beginScan({reset:true});
+  });
+  if (window.trace) window.trace('SCAN_LISTENER_ATTACHED');
+} else {
+  if (window.trace) window.trace('SCAN_ELEMENT_MISSING');
+}
+$('#closeScanBtn').addEventListener('click',()=>setScreen(captures.length?'review':'home'));
+$('#retryCameraBtn').addEventListener('click',startCamera);
+$('#shutterBtn').addEventListener('click',takeCapture);
+$('#meshToggleBtn').addEventListener('click',()=>{showMesh=!showMesh;showToast(showMesh?'Face tracking visible':'Face tracking hidden');if(!showMesh)clearScannerOverlay('user-toggle');});
+$('#helpBtn').addEventListener('click',()=>showToast('Follow the pose prompt, wait for Face locked, then tap the shutter.'));
+$('#lastThumb').addEventListener('click',()=>showToast(captures.length?`${captures[captures.length-1].label} captured`:'Your last scan photo will appear here.'));
+$('#retakeBtn').addEventListener('click',()=>beginScan({reset:true}));
+$('#useScanBtn').addEventListener('click',openStyles);
+$$('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  trace('NAV_TAP', btn.dataset.screen);
+  if(btn.dataset.screen==='home')setScreen('home');
+  if(btn.dataset.screen==='scan')beginScan({reset:true});
+  if(btn.dataset.screen==='styles')openStyles();
+}));
 cameraToggleBtn.addEventListener('click',switchCamera);scanFaceLightBtn.addEventListener('click',toggleScanFaceLight);scanTorchBtn.addEventListener('click',toggleScanTorch);zoomOutBtn.addEventListener('click',()=>adjustScanZoom(-.06));zoomInBtn.addEventListener('click',()=>adjustScanZoom(.06));generatePreviewBtn.addEventListener('click',()=>{const key=`${selectedCategory}:${selectedStyle}`;aiPreviewCache.delete(key);generateProfessionalPreview();});photoModeBtn.addEventListener('click',()=>generateProfessionalPreview());liveModeBtn.addEventListener('click',startLiveMap);
+settingsBtn.addEventListener('click', () => window.BeardTrimAndroid?.openSettings());
 closeLiveMapBtn.addEventListener('click',()=>setScreen('styles'));liveCameraToggleBtn.addEventListener('click',switchLiveCamera);liveZoomInBtn.addEventListener('click',()=>adjustLiveZoom(.06));liveZoomOutBtn.addEventListener('click',()=>adjustLiveZoom(-.06));liveFaceLightBtn.addEventListener('click',toggleLiveFaceLight);liveTorchBtn.addEventListener('click',toggleLiveTorch);prevLiveBtn.addEventListener('click',()=>{liveStepIndex=Math.max(0,liveStepIndex-1);updateLiveStepUI();});doneLiveBtn.addEventListener('click',()=>{const steps=guardSequence();if(liveStepIndex<steps.length-1){liveStepIndex++;updateLiveStepUI();}else showToast('All guard and line steps complete.');});resetLiveBtn.addEventListener('click',()=>{liveStepIndex=0;updateLiveStepUI();});liveStepMinimizeBtn.addEventListener('click',()=>{liveMapScreen.classList.add('step-minimized');liveStepRestoreBtn.textContent=`${liveStepIndex+1}/${guardSequence().length} · ${guardSequence()[liveStepIndex].label} · Show step ▴`;liveStepRestoreBtn.classList.remove('hidden');});liveStepRestoreBtn.addEventListener('click',()=>{liveMapScreen.classList.remove('step-minimized');liveStepRestoreBtn.classList.add('hidden');});
 window.addEventListener('resize',()=>{resizeOverlay();resizeLiveCanvas();applyVideoPresentation();applyLiveVideoPresentation();});window.addEventListener('pagehide',()=>{stopCamera();stopLiveCamera();});
 renderProgress();renderStyleSections();updateSelectedStyle();applyVideoPresentation();applyLiveVideoPresentation();
