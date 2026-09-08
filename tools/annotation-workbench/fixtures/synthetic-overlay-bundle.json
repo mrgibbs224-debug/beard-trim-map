@@ -1,0 +1,308 @@
+{
+  "_SYNTHETIC": "SYNTHETIC — NOT USER DATA. Placeholder PNGs + synthetic verified-landmark overlay points. Workbench BS1-H2 tests only.",
+  "schemaVersion": "annotation-bundle/1",
+  "bundleId": "synthetic-overlay-bundle-001",
+  "datasetId": "synthetic-overlay-dataset",
+  "datasetRevision": 1,
+  "createdAt": null,
+  "scanSessionIds": [
+    "synthetic-overlay-session"
+  ],
+  "rawImageStorageScope": "LOCAL_ANNOTATION_BUNDLE",
+  "entries": [
+    {
+      "schemaVersion": "annotation-bundle/1",
+      "sourceScanObservationId": "synthetic:front:img:0",
+      "imageRef": "synthetic:front:img:0:ts1000",
+      "nativeFrameTimestampNs": 1000,
+      "scanSessionId": "synthetic-overlay-session",
+      "poseId": "front",
+      "observedPoseRegion": null,
+      "yawDeg": 0,
+      "pitchDeg": 0,
+      "rollDeg": 0,
+      "syncStatus": "EXACT_SYNCHRONIZED",
+      "coherenceStatus": "VERIFIED_EXACT",
+      "sourceTier": "TIER_B_IMAGE_KEYFRAME",
+      "imageWidth": 64,
+      "imageHeight": 48,
+      "rotationDegrees": 90,
+      "mirrored": false,
+      "intrinsics": {
+        "fx": 50,
+        "fy": 50,
+        "cx": 32,
+        "cy": 24,
+        "imageWidth": 64,
+        "imageHeight": 48,
+        "space": "IMAGE"
+      },
+      "supportedGeometryRegions": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "regionsToAnnotate": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "rawImagePayload": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "rawImageFormat": "data-url",
+      "rawImageStorageScope": "LOCAL_ANNOTATION_BUNDLE",
+      "bundleImageStatus": "INCLUDED_FOR_ANNOTATION",
+      "outcome": "RESOLVED",
+      "overlayData": {
+        "schemaVersion": "annotation-overlay-data/1",
+        "sourceScanObservationId": "synthetic:front:img:0",
+        "imageRef": "synthetic:front:img:0:ts1000",
+        "nativeFrameTimestampNs": 1000,
+        "space": "IMAGE",
+        "imageWidth": 64,
+        "imageHeight": 48,
+        "rotationDegrees": 90,
+        "mirrored": false,
+        "points": [
+          {
+            "index": 152,
+            "x": 32,
+            "y": 44,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 172,
+            "x": 10,
+            "y": 30,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 397,
+            "x": 54,
+            "y": 30,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 148,
+            "x": 14,
+            "y": 40,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 377,
+            "x": 50,
+            "y": 40,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 234,
+            "x": 8,
+            "y": 24,
+            "group": "cheek"
+          },
+          {
+            "index": 454,
+            "x": 56,
+            "y": 24,
+            "group": "cheek"
+          },
+          {
+            "index": 17,
+            "x": 32,
+            "y": 36,
+            "group": "mouth-ref"
+          },
+          {
+            "index": 61,
+            "x": 24,
+            "y": 34,
+            "group": "mouth-ref"
+          },
+          {
+            "index": 291,
+            "x": 40,
+            "y": 34,
+            "group": "mouth-ref"
+          }
+        ],
+        "groupsPresent": [
+          "jaw-chin",
+          "cheek",
+          "mouth-ref"
+        ],
+        "note": "verified anatomy reference points only — NOT beard detection; under-jaw/neck intentionally absent"
+      }
+    },
+    {
+      "schemaVersion": "annotation-bundle/1",
+      "sourceScanObservationId": "synthetic:right-45:img:0",
+      "imageRef": "synthetic:right-45:img:0:ts2000",
+      "nativeFrameTimestampNs": 2000,
+      "scanSessionId": "synthetic-overlay-session",
+      "poseId": "right-45",
+      "observedPoseRegion": null,
+      "yawDeg": 0,
+      "pitchDeg": 0,
+      "rollDeg": 0,
+      "syncStatus": "EXACT_SYNCHRONIZED",
+      "coherenceStatus": "VERIFIED_EXACT",
+      "sourceTier": "TIER_B_IMAGE_KEYFRAME",
+      "imageWidth": 64,
+      "imageHeight": 48,
+      "rotationDegrees": 270,
+      "mirrored": true,
+      "intrinsics": {
+        "fx": 50,
+        "fy": 50,
+        "cx": 32,
+        "cy": 24,
+        "imageWidth": 64,
+        "imageHeight": 48,
+        "space": "IMAGE"
+      },
+      "supportedGeometryRegions": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "regionsToAnnotate": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "rawImagePayload": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "rawImageFormat": "data-url",
+      "rawImageStorageScope": "LOCAL_ANNOTATION_BUNDLE",
+      "bundleImageStatus": "INCLUDED_FOR_ANNOTATION",
+      "outcome": "RESOLVED",
+      "overlayData": {
+        "schemaVersion": "annotation-overlay-data/1",
+        "sourceScanObservationId": "synthetic:right-45:img:0",
+        "imageRef": "synthetic:right-45:img:0:ts2000",
+        "nativeFrameTimestampNs": 2000,
+        "space": "IMAGE",
+        "imageWidth": 64,
+        "imageHeight": 48,
+        "rotationDegrees": 270,
+        "mirrored": true,
+        "points": [
+          {
+            "index": 152,
+            "x": 32,
+            "y": 44,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 172,
+            "x": 10,
+            "y": 30,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 397,
+            "x": 54,
+            "y": 30,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 148,
+            "x": 14,
+            "y": 40,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 377,
+            "x": 50,
+            "y": 40,
+            "group": "jaw-chin"
+          },
+          {
+            "index": 234,
+            "x": 8,
+            "y": 24,
+            "group": "cheek"
+          },
+          {
+            "index": 454,
+            "x": 56,
+            "y": 24,
+            "group": "cheek"
+          },
+          {
+            "index": 17,
+            "x": 32,
+            "y": 36,
+            "group": "mouth-ref"
+          },
+          {
+            "index": 61,
+            "x": 24,
+            "y": 34,
+            "group": "mouth-ref"
+          },
+          {
+            "index": 291,
+            "x": 40,
+            "y": 34,
+            "group": "mouth-ref"
+          }
+        ],
+        "groupsPresent": [
+          "jaw-chin",
+          "cheek",
+          "mouth-ref"
+        ],
+        "note": "verified anatomy reference points only — NOT beard detection; under-jaw/neck intentionally absent"
+      }
+    },
+    {
+      "schemaVersion": "annotation-bundle/1",
+      "sourceScanObservationId": "synthetic:chin-up:img:0",
+      "imageRef": "synthetic:chin-up:img:0:ts3000",
+      "nativeFrameTimestampNs": 3000,
+      "scanSessionId": "synthetic-overlay-session",
+      "poseId": "chin-up",
+      "observedPoseRegion": null,
+      "yawDeg": 0,
+      "pitchDeg": 0,
+      "rollDeg": 0,
+      "syncStatus": "EXACT_SYNCHRONIZED",
+      "coherenceStatus": "VERIFIED_EXACT",
+      "sourceTier": "TIER_B_IMAGE_KEYFRAME",
+      "imageWidth": 64,
+      "imageHeight": 48,
+      "rotationDegrees": 0,
+      "mirrored": false,
+      "intrinsics": {
+        "fx": 50,
+        "fy": 50,
+        "cx": 32,
+        "cy": 24,
+        "imageWidth": 64,
+        "imageHeight": 48,
+        "space": "IMAGE"
+      },
+      "supportedGeometryRegions": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "regionsToAnnotate": [
+        "CHIN_CENTER",
+        "LEFT_JAW",
+        "RIGHT_JAW"
+      ],
+      "rawImagePayload": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwAEhgGAWjR9awAAAABJRU5ErkJggg==",
+      "rawImageFormat": "data-url",
+      "rawImageStorageScope": "LOCAL_ANNOTATION_BUNDLE",
+      "bundleImageStatus": "INCLUDED_FOR_ANNOTATION",
+      "outcome": "RESOLVED"
+    }
+  ],
+  "missingEntries": [],
+  "rejectedEntries": [],
+  "complete": true,
+  "buildOk": true,
+  "metadata": {
+    "note": "SYNTHETIC overlay fixture for BS1-H2 geometry-guide tests"
+  }
+}

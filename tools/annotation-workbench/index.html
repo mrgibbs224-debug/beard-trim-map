@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mettle Annotation Workbench (local dev tool)</title>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1e2228; --panel2:#262b33; --line:#333b45;
+    --ink:#e8ecf1; --muted:#9aa6b2; --accent:#4a90d9; --warn:#d9a441; --bad:#d96b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+  a{color:var(--accent)}
+  header{display:flex;gap:14px;align-items:center;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;font-weight:600}
+  header .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+  main{display:grid;grid-template-columns:minmax(320px,1fr) minmax(340px,440px);gap:0;height:calc(100% - 45px)}
+  #stage{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
+  #imageWrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#0e1013;position:relative}
+  #imgStack{position:relative;line-height:0;transform-origin:center center}
+  #img{max-width:96%;max-height:96%;image-rendering:auto;background:#222;display:block}
+  /* the overlay is authored in RAW image-pixel space and sits in the SAME transformed
+     wrapper as the image, so rotation + mirroring are byte-identical for both. */
+  #geomOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none}
+  #geomOverlay .rail{fill:none;stroke:#8ea0b5;stroke-width:1.1;stroke-opacity:.55;vector-effect:non-scaling-stroke}
+  #geomOverlay .node{fill:#aab6c4;fill-opacity:.7;stroke:#0e1013;stroke-width:.4;vector-effect:non-scaling-stroke}
+  #imgUnavailable{display:none;color:var(--warn);font-weight:600;letter-spacing:.5px;text-align:center;padding:24px}
+  #geomNote{font-size:11px;color:var(--muted);max-width:280px}
+  #stageBar{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line);flex-wrap:wrap}
+  #side{overflow:auto;background:var(--panel)}
+  .card{border:1px solid var(--line);border-radius:8px;margin:12px;background:var(--panel2)}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .card .body{padding:12px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:4px 10px;font-size:12.5px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;word-break:break-all}
+  .sync{display:inline-block;border-radius:4px;padding:1px 8px;font-size:11.5px;border:1px solid var(--line)}
+  .sync.exact{border-color:var(--accent);color:#bcd7f2}
+  .sync.weak{border-color:var(--warn);color:#e7cd9a}
+  .region{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel)}
+  .region.active{outline:2px solid var(--accent)}
+  .region h3{margin:0 0 8px;font-size:13.5px}
+  .region .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  .region label{font-size:12px;color:var(--muted);min-width:64px}
+  select,input,textarea,button{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+  select:focus,input:focus,textarea:focus,button:focus{outline:2px solid var(--accent);outline-offset:1px}
+  textarea{width:100%;min-height:44px;resize:vertical}
+  button{cursor:pointer;background:var(--panel2)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #progress{font-size:12px;color:var(--muted)}
+  #drop{margin:12px;border:1px dashed var(--line);border-radius:10px;padding:26px;text-align:center;color:var(--muted)}
+  #drop.hot{border-color:var(--accent);color:var(--ink)}
+  .muted{color:var(--muted)}
+  .warn{color:var(--warn)}
+  code{background:#0e1013;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000a;border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mettle Annotation Workbench</h1>
+  <span class="tag">local dev tool</span>
+  <span class="tag">not the consumer app</span>
+  <span class="tag" id="fpTag" title="bundle fingerprint">no bundle</span>
+  <span style="flex:1"></span>
+  <input type="file" id="file" accept="application/json,.json" aria-label="Load AnnotationBundle JSON">
+  <button id="btnExport" class="primary" disabled>Export GroundTruth JSON</button>
+</header>
+
+<main>
+  <section id="stage">
+    <div id="imageWrap">
+      <div id="imgStack">
+        <img id="img" alt="synchronized keyframe (display-transformed only)">
+        <svg id="geomOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <div id="imgUnavailable">IMAGE UNAVAILABLE<br><span class="muted" id="imgUnavailableMeta"></span></div>
+    </div>
+    <div id="stageBar">
+      <button id="btnPrev" disabled>&larr; Previous</button>
+      <button id="btnNext" disabled>Next &rarr;</button>
+      <button id="btnGeom" disabled title="Optional verified anatomy reference overlay">Geometry Guide: OFF</button>
+      <span id="geomNote"></span>
+      <span id="progress">Load an AnnotationBundle JSON to begin.</span>
+      <span style="flex:1"></span>
+      <label class="muted">zoom <input id="zoom" type="range" min="0.25" max="3" step="0.05" value="1" style="vertical-align:middle"></label>
+      <button id="btnFit">Fit</button>
+    </div>
+  </section>
+
+  <aside id="side">
+    <div id="drop">Drop an <code>AnnotationBundle</code> JSON here, or use the file picker above.</div>
+
+    <div class="card" id="cardIdentity" hidden>
+      <h2>Observation identity</h2>
+      <div class="body">
+        <dl class="kv" id="identity"></dl>
+      </div>
+    </div>
+
+    <div class="card" id="cardRegions" hidden>
+      <h2>Regions to label</h2>
+      <div class="body" id="regions"></div>
+      <div class="body muted" style="border-top:1px solid var(--line)">
+        Keyboard (only when an entry is focused, not in a text box):
+        <b>1</b>&nbsp;beard&nbsp; <b>2</b>&nbsp;skin&nbsp; <b>3</b>&nbsp;boundary&nbsp; <b>4</b>&nbsp;uncertain&nbsp; <b>5</b>&nbsp;unknown.
+        Shortcuts set the <i>active</i> region's HairState only; they never navigate.
+      </div>
+    </div>
+
+    <div class="card" id="cardProgress" hidden>
+      <h2>Progress</h2>
+      <div class="body"><div id="progressDetail" class="muted"></div></div>
+    </div>
+  </aside>
+</main>
+
+<div id="toast" role="status"></div>
+
+<script src="./annotation-workbench.cjs"></script>
+<script>
+(function(){
+  "use strict";
+  var A = window.AWB;
+  var bundle=null, state=null, activeRegion=null;
+  var LS_KEY='mettle.annotation-workbench.autosave.v1';
+
+  var el = function(id){ return document.getElementById(id); };
+  function toast(m){ var t=el('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove('show');},1800); }
+
+  // ---------- load ----------
+  el('file').addEventListener('change', function(e){ var f=e.target.files[0]; if(f) readFile(f); });
+  var drop=el('drop');
+  ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hot');}); });
+  ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hot');}); });
+  drop.addEventListener('drop', function(e){ var f=e.dataTransfer.files[0]; if(f) readFile(f); });
+
+  function readFile(f){
+    var r=new FileReader();
+    r.onload=function(){
+      var obj; try{ obj=JSON.parse(r.result); }catch(err){ toast('Not valid JSON.'); return; }
+      var v=A.validateBundle(obj);
+      if(!v.ok){ toast('Rejected: '+v.errors[0]); return; }
+      bundle=v.bundle;
+      var restored=tryRestore(bundle);
+      state = restored || A.initAnnotationState(bundle);
+      el('fpTag').textContent='fp '+A.bundleFingerprint(bundle);
+      drop.hidden=true;
+      ['cardIdentity','cardRegions','cardProgress'].forEach(function(id){ el(id).hidden=false; });
+      el('btnExport').disabled=false;
+      render();
+      toast(restored ? 'Bundle loaded — autosaved labels restored.' : 'Bundle loaded ('+bundle.entries.length+' images).');
+    };
+    r.readAsText(f);
+  }
+
+  // ---------- autosave / restore ----------
+  function saveLocal(){
+    if(!bundle||!state) return;
+    try{
+      var payload=A.buildAutosavePayload(bundle,state);
+      payload.savedAt=new Date().toISOString();
+      localStorage.setItem(LS_KEY, JSON.stringify(payload));  // labels/progress only — no pixels
+    }catch(_e){}
+  }
+  function tryRestore(b){
+    try{
+      var raw=localStorage.getItem(LS_KEY); if(!raw) return null;
+      var res=A.restoreFromAutosave(JSON.parse(raw), b);
+      if(res.ok) return res.state;
+      if(res.reason==='FINGERPRINT_MISMATCH') toast('Saved labels are for a different bundle — not attached.');
+      return null;
+    }catch(_e){ return null; }
+  }
+
+  // ---------- render ----------
+  function curEntry(){ return bundle.entries[state.position]; }
+
+  function render(){
+    var e=curEntry();
+    // image — the transform is applied to the STACK so the overlay rotates/mirrors identically
+    var img=el('img'), un=el('imgUnavailable'), stack=el('imgStack');
+    if(A.imageRenderable(e)){
+      stack.style.display=''; un.style.display='none';
+      img.src=e.rawImagePayload;
+      var t=A.displayTransform(e);
+      stack.style.transform=t.css+' scale('+el('zoom').value+')';
+    }else{
+      stack.style.display='none'; un.style.display='block';
+      el('imgUnavailableMeta').textContent=e.sourceScanObservationId+' • '+(e.poseId||'?')+' • ts '+(e.nativeFrameTimestampNs==null?'?':e.nativeFrameTimestampNs);
+    }
+    renderGeometryGuide(e);
+    // identity
+    var sw=(e.syncStatus==='EXACT_SYNCHRONIZED')?'<span class="sync exact">EXACT_SYNCHRONIZED</span>':'<span class="sync weak">'+(e.syncStatus||'UNKNOWN')+'</span>';
+    el('identity').innerHTML=
+      row('pose', e.poseId||'—')+row('observed region', e.observedPoseRegion||'—')+
+      row('observation id', e.sourceScanObservationId)+row('timestamp (ns)', e.nativeFrameTimestampNs==null?'—':e.nativeFrameTimestampNs)+
+      row('sync', sw)+row('coherence', e.coherenceStatus||'—')+
+      row('yaw / pitch / roll', fmt(e.yawDeg)+' / '+fmt(e.pitchDeg)+' / '+fmt(e.rollDeg))+
+      row('image', (e.imageWidth||'?')+' × '+(e.imageHeight||'?')+'  rot '+(e.rotationDegrees||0)+'°'+(e.mirrored?' mirrored':''));
+    // regions
+    var host=el('regions'); host.innerHTML='';
+    var m=A.entryLabels(state, e.sourceScanObservationId);
+    (e.regionsToAnnotate||[]).forEach(function(rg){
+      var l=m[rg]||A.defaultRegionLabel();
+      var d=document.createElement('div');
+      d.className='region'+(rg===activeRegion?' active':'');
+      d.tabIndex=0;
+      d.addEventListener('focus',function(){ activeRegion=rg; markActive(); });
+      d.innerHTML='<h3>'+rg+'</h3>'+
+        '<div class="row"><label>HairState</label>'+sel('hs',rg,A.HAIR_STATES,l.hairState,A.HAIR_STATE_DISPLAY)+'</div>'+
+        '<div class="row"><label>Status</label>'+sel('as',rg,A.ANNOTATION_STATUSES,l.annotationStatus,null)+'</div>'+
+        '<div class="row"><label>Confidence</label><input type="number" min="0" max="1" step="0.05" data-k="cf" data-r="'+rg+'" value="'+(l.annotationConfidence==null?'':l.annotationConfidence)+'" placeholder="blank = unknown" style="width:150px"></div>'+
+        '<div class="row"><label>Notes</label><textarea data-k="nt" data-r="'+rg+'" placeholder="optional">'+(l.notes||'')+'</textarea></div>';
+      host.appendChild(d);
+    });
+    host.querySelectorAll('select,input,textarea').forEach(function(c){
+      c.addEventListener('change', onField); c.addEventListener('input', function(ev){ if(c.tagName==='TEXTAREA'||c.type==='number') onField(ev); });
+    });
+    // nav + progress
+    el('btnPrev').disabled = state.position<=0;
+    el('btnNext').disabled = state.position>=bundle.entries.length-1;
+    var p=A.progressCounts(bundle,state);
+    el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
+    el('progressDetail').innerHTML=
+      'images completed: <b>'+p.imagesCompleted+'</b> / '+p.imageTotal+'<br>'+
+      'images needing review: <b>'+p.imagesNeedingReview+'</b><br>'+
+      'ambiguous labels: <b>'+p.ambiguousLabels+'</b><br>'+
+      'excluded labels: <b>'+p.excludedLabels+'</b>';
+  }
+  // ---------- geometry guide (optional, default OFF) ----------
+  // Shows verified jaw/chin/cheek/mouth-reference landmark rails ONLY, and only when the
+  // loaded bundle entry carries annotation-overlay-data/1. It is anatomy reference — NOT
+  // beard detection. Under-jaw / neck stay intentionally unassisted.
+  function renderGeometryGuide(e){
+    var svg=el('geomOverlay'), btn=el('btnGeom'), note=el('geomNote');
+    var available = A.imageRenderable(e) && A.overlayAvailable(e);
+    var on = !!(state && state.geometryGuide) && available;
+    btn.disabled = !available;
+    btn.textContent = 'Geometry Guide: ' + (!available ? 'N/A' : (on ? 'ON' : 'OFF'));
+    if(!available){
+      svg.style.display='none'; svg.innerHTML='';
+      if(!A.imageRenderable(e)){ note.textContent=''; return; }
+      var why = (A.overlayUnavailableReason ? A.overlayUnavailableReason(e) : null);
+      note.textContent = (e && e.overlayData)
+        ? ('GEOMETRY GUIDE UNAVAILABLE — verified overlay geometry failed a fail-closed check' + (why ? ' (' + why + ')' : '') + '.')
+        : 'GEOMETRY GUIDE UNAVAILABLE — this bundle carries no verified image-space geometry.';
+      return;
+    }
+    note.textContent = on
+      ? 'Overlay = tracked anatomy reference (verified jaw / chin / cheek / mouth landmarks). NOT beard detection. Under-jaw / neck are intentionally unassisted.'
+      : 'Optional verified anatomy reference is available for this image.';
+    if(!on){ svg.style.display='none'; svg.innerHTML=''; return; }
+    var m=A.overlayDisplayModel(e);
+    if(!m){ svg.style.display='none'; svg.innerHTML=''; return; }
+    svg.setAttribute('viewBox','0 0 '+(m.viewBox.w||1)+' '+(m.viewBox.h||1));
+    var parts=[];
+    (m.groups||[]).forEach(function(g){
+      if(g.points.length>1) parts.push('<polyline class="rail" points="'+g.polyline+'"></polyline>');
+    });
+    (m.points||[]).forEach(function(p){
+      var r=Math.max(0.6, Math.min(m.viewBox.w||64, m.viewBox.h||48)*0.012);
+      parts.push('<circle class="node" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
+    });
+    svg.innerHTML=parts.join('');
+    svg.style.display='block';
+  }
+  el('btnGeom').addEventListener('click', function(){
+    if(!bundle||!state) return;
+    state=A.setGeometryGuide(state, !state.geometryGuide);
+    saveLocal(); render();
+  });
+
+  function row(k,v){ return '<dt>'+k+'</dt><dd>'+v+'</dd>'; }
+  function fmt(n){ return (typeof n==='number'&&isFinite(n))?n.toFixed(1):'—'; }
+  function sel(kind,region,opts,val,disp){
+    var o=opts.map(function(x){ var t=(disp&&disp[x])?(disp[x]+'  ['+x+']'):x; return '<option value="'+x+'"'+(x===val?' selected':'')+'>'+t+'</option>'; }).join('');
+    return '<select data-k="'+kind+'" data-r="'+region+'">'+o+'</select>';
+  }
+  function markActive(){ document.querySelectorAll('.region').forEach(function(d){ d.classList.toggle('active', d.querySelector('h3')&&d.querySelector('h3').textContent===activeRegion); }); }
+
+  function onField(ev){
+    var c=ev.target, region=c.getAttribute('data-r'), kind=c.getAttribute('data-k');
+    var e=curEntry(), id=e.sourceScanObservationId, patch={};
+    if(kind==='hs') patch.hairState=c.value;
+    else if(kind==='as') patch.annotationStatus=c.value;
+    else if(kind==='cf') patch.annotationConfidence=(c.value===''?null:c.value);
+    else if(kind==='nt') patch.notes=c.value;
+    try{ state=A.setRegionLabel(state,id,region,patch); }catch(err){ toast(err.message); return; }
+    saveLocal();
+    // light refresh of progress only (don't blow away focus/caret)
+    var p=A.progressCounts(bundle,state);
+    el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
+  }
+
+  el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; saveLocal(); render(); });
+  el('btnNext').addEventListener('click', function(){ state=A.navigate(state, 1,bundle.entries.length); activeRegion=null; saveLocal(); render(); });
+  el('zoom').addEventListener('input', function(){ if(bundle) render(); });
+  el('btnFit').addEventListener('click', function(){ el('zoom').value=1; if(bundle) render(); });
+
+  // keyboard: 1..5 set the ACTIVE region's HairState. Never when typing in a field. Never navigates.
+  document.addEventListener('keydown', function(ev){
+    if(!bundle||!activeRegion) return;
+    var tag=(ev.target&&ev.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    var map={'1':'BEARD_CONFIRMED','2':'NON_BEARD_CONFIRMED','3':'BOUNDARY','4':'UNCERTAIN','5':'UNKNOWN'};
+    if(!map[ev.key]) return;
+    ev.preventDefault();
+    var e=curEntry();
+    try{ state=A.setRegionLabel(state,e.sourceScanObservationId,activeRegion,{hairState:map[ev.key]}); }catch(_e){ return; }
+    saveLocal(); render(); markActive();
+    toast(activeRegion+' → '+map[ev.key]);
+  });
+
+  // ---------- export ----------
+  el('btnExport').addEventListener('click', function(){
+    var exp=A.buildExport(bundle,state,{exportedAt:new Date().toISOString()});
+    var v=A.validateExport(exp,bundle);
+    if(!v.ok){ toast('Export blocked: '+v.errors[0]); return; }
+    var s=exp.summary;
+    toast('Export: '+s.definitive+' definitive · '+s.ambiguous+' ambiguous · '+s.needsReview+' review · '+s.excluded+' excluded · '+s.unknown+' unknown');
+    var blob=new Blob([JSON.stringify(exp,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(bundle.bundleId||'annotation')+'.groundtruth.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  });
+})();
+</script>
+</body>
+</html>
