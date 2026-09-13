@@ -72,13 +72,17 @@ test('every unannotated region defaults to HairState.UNKNOWN + AnnotationStatus.
   }
 });
 
-// 9–14 — canonical HairState / AnnotationStatus values are preserved.
+// 9–14 — canonical HairState / AnnotationStatus values are preserved, for the states this
+// region's semantic-labelability tier actually allows (BI-1E PRE-ANNOTATION CORRECTION: HairState
+// enforcement follows regionAllowedHairStates/regionLabelability, not the full 5-state vocabulary
+// unconditionally — see the dedicated labelability test file for the gate itself).
 test('selected HairState and AnnotationStatus values are stored canonically', () => {
   const b = bundle();
   const id = entryOf(b, 0).sourceScanObservationId;
-  const r = entryOf(b, 0).regionsToAnnotate[0];
+  const r = entryOf(b, 0).regionsToAnnotate[0]; // CHIN_CENTER: LABELABLE_FROM_IMAGE
+  assert.deepEqual(AWB.regionAllowedHairStates(r), ['BEARD_CONFIRMED', 'NON_BEARD_CONFIRMED', 'UNKNOWN']);
   let st = AWB.initAnnotationState(b);
-  for (const hs of ['BEARD_CONFIRMED', 'NON_BEARD_CONFIRMED', 'BOUNDARY', 'UNCERTAIN', 'UNKNOWN']) {
+  for (const hs of ['BEARD_CONFIRMED', 'NON_BEARD_CONFIRMED', 'UNKNOWN']) {
     st = AWB.setRegionLabel(st, id, r, { hairState: hs });
     assert.equal(st.byEntry[id][r].hairState, hs);
   }
@@ -86,6 +90,13 @@ test('selected HairState and AnnotationStatus values are stored canonically', ()
     st = AWB.setRegionLabel(st, id, r, { annotationStatus: as });
     assert.equal(st.byEntry[id][r].annotationStatus, as);
   }
+  // BOUNDARY / UNCERTAIN remain legitimate members of the canonical HAIR_STATES vocabulary
+  // (other bundles/experiments may allow them) but this region's labelability gate rejects them —
+  // a DIFFERENT failure than an actually-invalid string.
+  assert.ok(AWB.HAIR_STATES.includes('BOUNDARY'));
+  assert.ok(AWB.HAIR_STATES.includes('UNCERTAIN'));
+  assert.throws(() => AWB.setRegionLabel(st, id, r, { hairState: 'BOUNDARY' }), /classified UNKNOWN_ONLY/);
+  assert.throws(() => AWB.setRegionLabel(st, id, r, { hairState: 'UNCERTAIN' }), /classified UNKNOWN_ONLY/);
   assert.throws(() => AWB.setRegionLabel(st, id, r, { hairState: 'MAYBE' }), /invalid hairState/);
   assert.throws(() => AWB.setRegionLabel(st, id, r, { annotationStatus: 'YES' }), /invalid annotationStatus/);
 });
@@ -138,12 +149,12 @@ test('autosave payload contains labels/progress but NO raw image pixels', () => 
 test('autosave restore reattaches on a matching fingerprint and fails closed otherwise', () => {
   const b = bundle();
   const e0 = entryOf(b, 0), id0 = e0.sourceScanObservationId, r0 = e0.regionsToAnnotate[0];
-  let st = AWB.setRegionLabel(AWB.initAnnotationState(b), id0, r0, { hairState: 'BOUNDARY', annotationStatus: 'LABELED' });
+  let st = AWB.setRegionLabel(AWB.initAnnotationState(b), id0, r0, { hairState: 'NON_BEARD_CONFIRMED', annotationStatus: 'LABELED' });
   const save = AWB.buildAutosavePayload(b, st);
 
   const good = AWB.restoreFromAutosave(save, b);
   assert.equal(good.ok, true);
-  assert.equal(good.state.byEntry[id0][r0].hairState, 'BOUNDARY');
+  assert.equal(good.state.byEntry[id0][r0].hairState, 'NON_BEARD_CONFIRMED');
 
   const otherBundle = bundle();
   otherBundle.bundleId = 'a-different-bundle';

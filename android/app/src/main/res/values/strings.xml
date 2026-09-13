@@ -1,8 +1,4 @@
 <resources>
-    <string name="app_name">Beard Trim Map</string>
-    <string name="home_message">Native Android shell</string>
-    <string name="about_message">Phase 1 shell ready</string>
-    <string name="nav_home">Home</string>
-    <string name="nav_about">About</string>
+    <string name="app_name">Mettle Grooming</string>
+    <string name="web_app_load_error">Mettle Grooming could not load. Close and reopen the app to retry.</string>
 </resources>
-

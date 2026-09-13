@@ -1,0 +1,8 @@
+<!-- UX3-B3 section 6B: Mettle Grooming adaptive launcher icon (API 26 and up). Manifest still
+     points at @drawable/ic_launcher; Android resolves this on API 26+ and drawable/ic_launcher.xml
+     on API 24-25. Handles circle / squircle / rounded-square / Samsung masks from one definition. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

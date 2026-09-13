@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/tmp/
+.idea/
+.claude/
+android/.idea/
+android/.gradle-user/
+android/.artifacts/

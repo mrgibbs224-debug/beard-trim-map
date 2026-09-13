@@ -1,0 +1,25 @@
+<!-- BRAND-PRIMARY-2: themed / monochrome launcher icon. Same precision/target-ring identity as a
+     single-colour silhouette (Android tints it). Not a redesign: the ring + 4 ticks geometry is
+     unchanged; the inner mark is a faithful SIMPLIFIED silhouette of the NEW front-facing bearded
+     emblem (derived from Mettle_Grooming_Primary_Logo_Reference.png), replacing the previous
+     side-profile silhouette. Same architectural monochrome slot as before. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:fillColor="#00000000"
+        android:pathData="M27,54 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,21 V30 M54,78 V87 M21,54 H30 M78,54 H87" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,32 Q54,26 64,32 Q69,36 68,44 Q67,52 66,56 Q72,58 72,64 Q71,72 62,78 Q54,83 46,78 Q37,72 36,64 Q36,58 42,56 Q41,52 40,44 Q39,36 44,32 Z" />
+</vector>

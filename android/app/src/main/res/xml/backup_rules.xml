@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="tracking/" />
+    <exclude domain="file" path="biometric/" />
+    <exclude domain="file" path="sessions/" />
+</full-backup-content>

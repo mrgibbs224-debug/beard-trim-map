@@ -91,6 +91,88 @@ reinterpreted as pixels. If the image is unavailable, there is no overlay.
 The geometry-guide **toggle state** (a single boolean) is the only thing added to autosave; it
 never writes coordinates or pixels.
 
+## Outer-beard contour tool (optional) — Stage BI-1Y
+
+A **second, wholly additive evidence layer** for tracing the visible **outer beard silhouette**
+— never skin, never hidden anatomy. It appears automatically when a loaded bundle entry carries
+`contourTypesToAnnotate` (a BI-1W-only bundle shows nothing new; nothing about the categorical
+HairState/SurfaceObservability tool above is touched).
+
+Three contour types, each an **open polyline** (never forced into a closed polygon):
+`OUTER_BEARD_UNDERSIDE`, `OUTER_BEARD_UNDER_JAW_LEFT`, `OUTER_BEARD_UNDER_JAW_RIGHT` (left/right
+ordering matches the project's established `UNDER_JAW_LEFT`/`UNDER_JAW_RIGHT` convention). Click
+**Trace**, then click along the visible BEARD-to-AIR/BACKGROUND edge from one end to the other
+(never the natural/desired neckline — stop the line where the visible edge stops), **Undo last
+point** to fix a slip, **Finish** to mark it `TRACED` (needs 2+ points), or **Not traceable** /
+**Unknown** if the image doesn't show it reliably — both always clear any points, since neither
+legitimately carries coordinates.
+
+Every contour instance starts in a fourth, non-final internal state, `UNSET` — "nobody has
+reviewed this yet" — never the real answer `UNKNOWN`, which only appears once the annotator
+explicitly clicks **Unknown**. **Export Contour JSON** stays disabled until every requested
+contour instance across the whole bundle has one of the three explicit decisions
+(`TRACED`/`NOT_TRACEABLE`/`UNKNOWN`); an `UNSET` instance can never be exported.
+
+Points are captured in the same raw-image-pixel space as the geometry overlay below (`space:
+"IMAGE"`, pre display-transform), converted from the click's on-screen position using the real
+`<img>` `naturalWidth`/`naturalHeight` — never the CSS/display size — so a contour never shifts
+when the window resizes or the zoom slider changes. Points are stored and exported in the exact
+order clicked; nothing is smoothed, resampled, or auto-closed.
+
+Autosaves under a **separate** `localStorage` key
+(`mettle.annotation-workbench.contour-autosave.v1`), fingerprint-gated the same fail-closed way
+as the categorical autosave, and exports via its own **Export Contour JSON** button to
+`{ contourWorkbenchVersion, bundleFingerprint, sourceMethod: "MANUAL_GROUND_TRUTH", summary,
+contours[] }` — each `contours[]` row carries full raw-observation identity, `contourType`,
+`annotationStatus` (`TRACED`/`NOT_TRACEABLE`/`UNKNOWN`), ordered `points`, `coordinateSpace`, and
+`imageWidth`/`imageHeight` for exact pixel reproducibility. Validation fails closed (never
+repairs) on an unresolvable identity, a `TRACED` contour with too few points or no dimensions, an
+out-of-bounds point, a duplicate `contourId`, a missing timestamp, or the sealed BI-1W holdout
+identity appearing anywhere.
+
+**Coordinate calibration.** Before collecting real contour GT, open
+`tools/annotation-workbench/coordinate-self-test.html` (a separate, removable developer-only
+page — no autosave, no data, not wired into anything) and click through its 5 crosshair targets
+under a few display states (default, zoomed, mirrored, rotated, after a window resize). Every
+target should read PASS with a pixel error near 0; it exercises the exact same
+`annotation-workbench.cjs` + `#imgStack > #img` transform structure as this page, so a pass there
+is a real confirmation of the click → canonical-coordinate path, not just of the underlying ratio
+math (which is separately unit-tested).
+
+## Assisted beard-boundary review (optional) — Stage BI-1Y2
+
+A **third, wholly additive evidence layer**: MACHINE PROPOSES → USER REVIEWS → USER DRAGS/CORRECTS
+→ USER APPROVES. Appears when a loaded bundle entry carries `assistedReviewTargets` (currently
+one target, `VISIBLE_BEARD_SILHOUETTE` — BI-1Y's own bake-off found a single closed beard
+silhouette a far more reliable review primitive than three independent open lines, which is what
+made BI-1Y's manual open-edge traces hard to get right in the first place).
+
+Click **Generate proposal** to run a small, dependency-free, CPU-only pipeline
+(`beard-proposal.cjs`: Otsu darkness threshold inside a rough prior region, binary morphology,
+largest-connected-component, Moore boundary trace, Ramer–Douglas–Peucker simplification) entirely
+in the browser against the real decoded image. The prior region comes from `priorHintPoints` —
+old BI-1Y traces, if present, used **only** as a coarse search-region hint, never as the answer.
+Drag any handle to correct it (arrow keys nudge 1 image px, Shift+arrow 5px, with a live magnified
+crop of the selected point), **Add point** / **Delete selected point** / **Undo** / **Reset to
+proposal** as needed, then **Approve as-is** (zero edits made), **Approve corrected**, **Reject
+proposal**, or **Not traceable**. A proposal is never GroundTruth by itself — only an explicit
+approval is, and **Export Assisted Review JSON** stays disabled until every requested item has an
+explicit decision. Every export row keeps the original dense machine proposal AND the human-final
+points as separate fields (`sourceMethod: "HUMAN_VERIFIED_ASSISTED_GROUND_TRUTH"`, `isGroundTruth`
+computed from the review status) so future accuracy metrics (proposal-to-human distance, percent
+accepted unchanged, etc.) can be computed without re-deriving anything.
+
+**Self-describing dimensions (BI-1Y3 fix).** The real decoded `imageWidth`/`imageHeight` are
+captured once per image (from the same `naturalWidth`/`naturalHeight` used to run the proposal
+pipeline) and now travel into every export row — a BI-1Y2-era bug read the bundle entry's own
+(always-null) `imageWidth`/`imageHeight` metadata instead. `validateAssistedReviewExport` fails
+closed on any GroundTruth row missing valid positive dimensions, since IMAGE-coordinate
+GroundTruth without them cannot be reproduced later. **Telemetry caution:** `editCount`/
+`pointsMoved` count every `pointermove` event fired during a drag (hundreds per gesture) — never
+read them as "number of corrections". `dragGestureCount`, `distinctHandlesMovedCount`,
+`netVertexDisplacementPx`, and `totalVertexDisplacementPx` (recorded once per completed drag, via
+`recordDragGesture`) are the honest human-effort metrics for sessions recorded after this fix.
+
 ## Autosave
 
 After every change the workbench writes to `localStorage` under

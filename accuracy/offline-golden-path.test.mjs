@@ -143,13 +143,24 @@ function runGoldenPipeline() {
   const idOf = (pose, i = 0) => scanPackage.posePackages[pose].retainedImageObservations[i].observationId;
   const fId = idOf('front'), r45Id = idOf('right-45'), rpId = idOf('right-profile'), cuId = idOf('chin-up');
   const L = (id, region, hs, as) => { state = AWB.setRegionLabel(state, id, region, { hairState: hs, annotationStatus: as }); };
+  // BOUNDARY / UNCERTAIN are written directly into state rather than through AWB.setRegionLabel:
+  // BI-1E added an interactive labelability gate to setRegionLabel that restricts a specific
+  // EXPERIMENT's region set to {BEARD_CONFIRMED, NON_BEARD_CONFIRMED, UNKNOWN} for regions
+  // lacking a reliable spatial definition. That is a workbench-UI safety policy for that
+  // experiment, not a constraint on what the underlying BS1-F HairState schema permits — this
+  // pipeline test exists specifically to prove BOUNDARY/UNCERTAIN GT flows correctly all the way
+  // to confusion-matrix scoring (see PART10b and the BOUNDARY.BOUNDARY assertion below), so it
+  // writes those two states directly, bypassing that UI-specific gate on purpose.
+  const Ldirect = (id, region, hs, as) => {
+    state = { ...state, byEntry: { ...state.byEntry, [id]: { ...state.byEntry[id], [region]: { hairState: hs, annotationStatus: as, annotationConfidence: null, notes: '' } } } };
+  };
   L(fId, 'LEFT_JAW', 'BEARD_CONFIRMED', 'LABELED');
   L(fId, 'RIGHT_JAW', 'NON_BEARD_CONFIRMED', 'LABELED');
-  L(fId, 'CHIN_CENTER', 'BOUNDARY', 'LABELED');
+  Ldirect(fId, 'CHIN_CENTER', 'BOUNDARY', 'LABELED');
   L(r45Id, 'LEFT_JAW', 'BEARD_CONFIRMED', 'LABELED');
   L(r45Id, 'CHIN_CENTER', 'BEARD_CONFIRMED', 'LABELED');
   L(rpId, 'RIGHT_JAW', 'BEARD_CONFIRMED', 'LABELED');
-  L(cuId, 'CHIN_CENTER', 'UNCERTAIN', 'NEEDS_REVIEW');
+  Ldirect(cuId, 'CHIN_CENTER', 'UNCERTAIN', 'NEEDS_REVIEW');
   // Every other requested region on every entry stays UNKNOWN / UNKNOWN on purpose.
   const exportObj = AWB.buildExport(validated.bundle, state, {});
 

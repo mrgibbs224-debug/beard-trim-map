@@ -8,6 +8,7 @@
   :root{
     --bg:#14161a; --panel:#1e2228; --panel2:#262b33; --line:#333b45;
     --ink:#e8ecf1; --muted:#9aa6b2; --accent:#4a90d9; --warn:#d9a441; --bad:#d96b6b;
+    --contour:#4fd18b; --contour-dim:#2f7a55;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
@@ -25,6 +26,58 @@
   #geomOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none}
   #geomOverlay .rail{fill:none;stroke:#8ea0b5;stroke-width:1.1;stroke-opacity:.55;vector-effect:non-scaling-stroke}
   #geomOverlay .node{fill:#aab6c4;fill-opacity:.7;stroke:#0e1013;stroke-width:.4;vector-effect:non-scaling-stroke}
+  /* active-region highlight: solid accent = verified reference, dashed amber = approximate proxy only */
+  #geomOverlay .rail.active-region{stroke:var(--accent);stroke-width:2.6;stroke-opacity:.95}
+  #geomOverlay .rail.active-region.proxy{stroke:var(--warn);stroke-dasharray:5 4}
+  #geomOverlay .node.active-region{fill:var(--accent);fill-opacity:1}
+  #geomOverlay .node.active-region.proxy{fill:var(--warn)}
+  /* BI-1Y — the user's outer-beard contour is a wholly distinct color/layer from the jaw-rail
+     geometry reference above: contour = visible outer beard boundary, jaw rail = internal
+     reference only. Same raw-image-pixel viewBox technique, drawn in its own overlay. */
+  #contourOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none}
+  #contourOverlay .cline{fill:none;stroke:var(--contour);stroke-width:2.2;stroke-opacity:.9;vector-effect:non-scaling-stroke}
+  #contourOverlay .cline.dim{stroke:var(--contour-dim);stroke-dasharray:4 3}
+  #contourOverlay .cpoint{fill:var(--contour);stroke:#0e1013;stroke-width:.6;vector-effect:non-scaling-stroke}
+  #img.tracing{cursor:crosshair}
+  .contour-row{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel)}
+  .contour-row.active{outline:2px solid var(--contour)}
+  .contour-row h3{margin:0 0 6px;font-size:13.5px}
+  .contour-def{font-size:11.5px;color:var(--muted);margin:0 0 8px}
+  .status-badge{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-radius:4px;padding:1px 7px;margin-left:8px;vertical-align:middle;border:1px solid var(--line)}
+  .status-badge.traced{color:#bdf0d4;border-color:var(--contour)}
+  .status-badge.not-traceable{color:#e7cd9a;border-color:var(--warn)}
+  .status-badge.unknown{color:var(--muted)}
+  .status-badge.unset{color:var(--muted);border-style:dashed}
+  .contour-row .row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  button.contour-primary{background:var(--contour);border-color:var(--contour);color:#0e1013}
+
+  /* BI-1Y2 — assisted review: machine proposal (dashed amber) vs human current shape (solid
+     violet), a visually distinct third layer from both the jaw rail and the BI-1Y contour tool. */
+  :root{ --review:#b58bf0; --review-dim:#8a6bb8; }
+  /* pointer-events:none at the root, exactly like #geomOverlay/#contourOverlay -- individual
+     handles/segment-hit-lines opt back in to auto so clicks pass through to #img everywhere else. */
+  #reviewOverlay{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none}
+  #reviewOverlay .proposalLine{fill:none;stroke:var(--warn);stroke-width:1.6;stroke-dasharray:5 4;stroke-opacity:.8;vector-effect:non-scaling-stroke}
+  #reviewOverlay .priorTrace{fill:none;stroke:#888;stroke-width:1.2;stroke-dasharray:2 3;stroke-opacity:.75;vector-effect:non-scaling-stroke}
+  #reviewOverlay .jawDiagnostic{fill:#00e5ff;fill-opacity:.55;stroke:#00343a;stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
+  #reviewOverlay .finalLine{fill:var(--review);fill-opacity:.18;stroke:var(--review);stroke-width:2.2;vector-effect:non-scaling-stroke}
+  #reviewOverlay .handle{fill:var(--review);stroke:#0e1013;stroke-width:.8;cursor:grab;vector-effect:non-scaling-stroke}
+  #reviewOverlay .handle.selected{fill:#fff;stroke:var(--review);stroke-width:2;vector-effect:non-scaling-stroke}
+  #reviewOverlay .segHit{stroke:transparent;stroke-width:14;fill:none;cursor:copy;vector-effect:non-scaling-stroke}
+  #magnifier{position:absolute;right:10px;bottom:10px;background:#0e1013;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;z-index:5}
+  #magCanvas{background:#000;image-rendering:pixelated;border-radius:4px}
+  #magHint{font-size:10px;margin-top:4px}
+  .review-row{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel)}
+  .review-row .row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  button.review-primary{background:var(--review);border-color:var(--review);color:#0e1013}
+  .status-badge.approved{color:#d8c6f7;border-color:var(--review)}
+  .status-badge.rejected{color:var(--bad);border-color:var(--bad)}
+  .tier-badge{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-radius:4px;padding:1px 7px;margin-left:8px;vertical-align:middle;border:1px solid var(--line)}
+  .tier-badge.verified{color:#bcd7f2;border-color:var(--accent)}
+  .tier-badge.proxy{color:#e7cd9a;border-color:var(--warn)}
+  .tier-badge.unsupported{color:#f0b3b3;border-color:var(--bad)}
+  .region-ref-note{font-size:11.5px;color:var(--muted);margin:-4px 0 8px}
+  .region-ref-note.unsupported{color:#f0b3b3}
   #imgUnavailable{display:none;color:var(--warn);font-weight:600;letter-spacing:.5px;text-align:center;padding:24px}
   #geomNote{font-size:11px;color:var(--muted);max-width:280px}
   #stageBar{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line);flex-wrap:wrap}
@@ -68,6 +121,8 @@
   <span style="flex:1"></span>
   <input type="file" id="file" accept="application/json,.json" aria-label="Load AnnotationBundle JSON">
   <button id="btnExport" class="primary" disabled>Export GroundTruth JSON</button>
+  <button id="btnExportContour" class="contour-primary" disabled>Export Contour JSON</button>
+  <button id="btnExportReview" class="review-primary" disabled>Export Assisted Review JSON</button>
 </header>
 
 <main>
@@ -76,8 +131,14 @@
       <div id="imgStack">
         <img id="img" alt="synchronized keyframe (display-transformed only)">
         <svg id="geomOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <svg id="contourOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <svg id="reviewOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
       <div id="imgUnavailable">IMAGE UNAVAILABLE<br><span class="muted" id="imgUnavailableMeta"></span></div>
+      <div id="magnifier" hidden>
+        <canvas id="magCanvas" width="160" height="160"></canvas>
+        <div class="muted" id="magHint">arrows nudge 1px · shift+arrows 5px</div>
+      </div>
     </div>
     <div id="stageBar">
       <button id="btnPrev" disabled>&larr; Previous</button>
@@ -115,18 +176,69 @@
       <h2>Progress</h2>
       <div class="body"><div id="progressDetail" class="muted"></div></div>
     </div>
+
+    <div class="card" id="cardContours" hidden>
+      <h2>Outer-beard contours (BI-1Y)</h2>
+      <div class="body muted" style="padding-bottom:0">
+        Trace the visible BEARD-to-AIR / BEARD-to-BACKGROUND edge only. Never trace where you
+        think skin is underneath, and never trace a desired or natural neckline — stop the line
+        where the visible edge stops.
+      </div>
+      <div class="body" id="contours"></div>
+      <div class="body muted" style="border-top:1px solid var(--line)" id="contourProgressDetail"></div>
+    </div>
+
+    <div class="card" id="cardReview" hidden>
+      <h2>Assisted beard-boundary review (BI-1Y2)</h2>
+      <div class="body muted" style="padding-bottom:0">
+        A machine proposal is drawn first. Check it against the visible beard boundary, drag
+        handles to correct it, then approve. You should almost never need to build a shape from
+        scratch.
+      </div>
+      <div class="body" id="review"></div>
+      <div class="body muted" style="border-top:1px solid var(--line)" id="reviewProgressDetail"></div>
+    </div>
   </aside>
 </main>
 
 <div id="toast" role="status"></div>
 
 <script src="./annotation-workbench.cjs"></script>
+<script src="./beard-proposal.cjs"></script>
 <script>
 (function(){
   "use strict";
   var A = window.AWB;
+  var BP = window.BeardProposal;
   var bundle=null, state=null, activeRegion=null;
   var LS_KEY='mettle.annotation-workbench.autosave.v1';
+  // BI-1Y — wholly separate contour state + autosave namespace (Part 17). Never read/written by
+  // any categorical (BI-1W) code path above, and never clears the categorical autosave key.
+  var contourState=null, activeContourType=null;
+  var CONTOUR_LS_KEY='mettle.annotation-workbench.contour-autosave.v1';
+  // BI-1Y2 — wholly separate assisted-review state + autosave namespace. Never read/written by
+  // any BI-1W or BI-1Y code path, and never clears either of their autosave keys.
+  var reviewState=null, selectedHandle=null, addPointMode=false, dragging=null, showPriorTrace=false;
+  // BI-1Z1A (Part 12) -- anti-anchoring-bias controls. Both default to the state that keeps the
+  // human looking at what tracking/proposal machinery drew UNLESS they deliberately switch away
+  // from it; hideProposal starts false (a proposal is normally shown) so the recommended workflow
+  // is "inspect proposal -> correct -> click Hide -> inspect final outline against the image
+  // alone -> approve". showJawDiagnostic defaults OFF and is never required to annotate.
+  var hideProposal=false, showJawDiagnostic=false;
+  var REVIEW_LS_KEY='mettle.annotation-workbench.assisted-review-autosave.v1';
+  // BI-1Z1A.1 BUGFIX -- was a single hardcoded 'VISIBLE_BEARD_SILHOUETTE' constant left over from
+  // BI-1Y2, when every bundle ever had exactly one possible review target. BI-1Z1A introduced a
+  // SECOND target (VISIBLE_LOWER_BEARD_SILHOUETTE) for fresh Exact-Frame bundles; every function
+  // that still referenced the old hardcoded constant (generateProposal, the "Add point" click
+  // handler, the magnifier, and the keyboard delete/nudge handlers) kept writing to / reading from
+  // 'VISIBLE_BEARD_SILHOUETTE' regardless of which target the bundle actually requested -- so on a
+  // BI-1Z1A bundle, a correctly-generated proposal was silently attached under a target key the UI
+  // never displays (proven via a real headless-Chrome CDP session against the exact bundle file;
+  // see the BI-1Z1A.1 report). Replaced with a tracked "currently active target" that follows
+  // whichever review row/handle the user is actually interacting with, defaulting to the current
+  // entry's own first requested target. This is a pure UI-wiring fix -- no proposal/ROI/algorithm
+  // code was touched.
+  var activeReviewTarget=null;
 
   var el = function(id){ return document.getElementById(id); };
   function toast(m){ var t=el('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove('show');},1800); }
@@ -142,17 +254,33 @@
     var r=new FileReader();
     r.onload=function(){
       var obj; try{ obj=JSON.parse(r.result); }catch(err){ toast('Not valid JSON.'); return; }
-      var v=A.validateBundle(obj);
+      // validateContourBundle is a strict superset of validateBundle (same errors/ok/bundle for
+      // any entry that carries no contourTypesToAnnotate and is not the sealed holdout) -- a
+      // historical BI-1W-only bundle loads byte-identically through this one call.
+      var v=A.validateContourBundle(obj);
       if(!v.ok){ toast('Rejected: '+v.errors[0]); return; }
       bundle=v.bundle;
       var restored=tryRestore(bundle);
       state = restored || A.initAnnotationState(bundle);
+      var restoredContour=tryRestoreContour(bundle);
+      contourState = restoredContour || A.initContourState(bundle);
+      activeContourType=null;
+      var restoredReview=tryRestoreReview(bundle);
+      reviewState = restoredReview || A.initAssistedReviewState(bundle);
+      selectedHandle=null; addPointMode=false;
       el('fpTag').textContent='fp '+A.bundleFingerprint(bundle);
       drop.hidden=true;
-      ['cardIdentity','cardRegions','cardProgress'].forEach(function(id){ el(id).hidden=false; });
-      el('btnExport').disabled=false;
+      var hasContours = (bundle.entries||[]).some(function(e){ return (e.contourTypesToAnnotate||[]).length>0; });
+      var hasRegions = (bundle.entries||[]).some(function(e){ return (e.regionsToAnnotate||[]).length>0; });
+      var hasReview = (bundle.entries||[]).some(function(e){ return (e.assistedReviewTargets||[]).length>0; });
+      ['cardIdentity','cardProgress'].forEach(function(id){ el(id).hidden=false; });
+      el('cardRegions').hidden = !hasRegions;
+      el('cardContours').hidden = !hasContours;
+      el('cardReview').hidden = !hasReview;
+      el('btnExport').disabled = !hasRegions;
+      el('btnExportContour').disabled = !hasContours;
       render();
-      toast(restored ? 'Bundle loaded — autosaved labels restored.' : 'Bundle loaded ('+bundle.entries.length+' images).');
+      toast((restored||restoredContour||restoredReview) ? 'Bundle loaded — autosaved annotations restored.' : 'Bundle loaded ('+bundle.entries.length+' images).');
     };
     r.readAsText(f);
   }
@@ -176,11 +304,54 @@
     }catch(_e){ return null; }
   }
 
+  // ---------- BI-1Y contour autosave / restore (SEPARATE key -- never touches LS_KEY above) --
+  function saveContourLocal(){
+    if(!bundle||!contourState) return;
+    try{
+      var payload=A.buildContourAutosavePayload(bundle,contourState);
+      payload.savedAt=new Date().toISOString();
+      localStorage.setItem(CONTOUR_LS_KEY, JSON.stringify(payload));  // points/status/notes only — no pixels
+    }catch(_e){}
+  }
+  function tryRestoreContour(b){
+    try{
+      var raw=localStorage.getItem(CONTOUR_LS_KEY); if(!raw) return null;
+      var res=A.restoreContourFromAutosave(JSON.parse(raw), b);
+      if(res.ok) return res.state;
+      return null;
+    }catch(_e){ return null; }
+  }
+
+  // ---------- BI-1Y2 assisted-review autosave / restore (SEPARATE key) ----
+  function saveReviewLocal(){
+    if(!bundle||!reviewState) return;
+    try{
+      var payload=A.buildAssistedReviewAutosavePayload(bundle,reviewState);
+      payload.savedAt=new Date().toISOString();
+      localStorage.setItem(REVIEW_LS_KEY, JSON.stringify(payload)); // points/status/provenance only — no pixels
+    }catch(_e){}
+  }
+  function tryRestoreReview(b){
+    try{
+      var raw=localStorage.getItem(REVIEW_LS_KEY); if(!raw) return null;
+      var res=A.restoreAssistedReviewFromAutosave(JSON.parse(raw), b);
+      if(res.ok) return res.state;
+      return null;
+    }catch(_e){ return null; }
+  }
+
   // ---------- render ----------
   function curEntry(){ return bundle.entries[state.position]; }
 
   function render(){
     var e=curEntry();
+    // BI-1Z1A.1 BUGFIX -- keep activeReviewTarget valid for whichever entry is now current: only
+    // reset it when it isn't one of THIS entry's own requested targets (first load, or navigating
+    // to a different image), so an explicit in-entry choice from onReviewButton/onHandlePointerDown
+    // is never clobbered by this same render() call they themselves trigger afterward.
+    if(e && Array.isArray(e.assistedReviewTargets) && e.assistedReviewTargets.indexOf(activeReviewTarget)===-1){
+      activeReviewTarget = e.assistedReviewTargets[0] || null;
+    }
     // image — the transform is applied to the STACK so the overlay rotates/mirrors identically
     var img=el('img'), un=el('imgUnavailable'), stack=el('imgStack');
     if(A.imageRenderable(e)){
@@ -190,28 +361,75 @@
       stack.style.transform=t.css+' scale('+el('zoom').value+')';
     }else{
       stack.style.display='none'; un.style.display='block';
-      el('imgUnavailableMeta').textContent=e.sourceScanObservationId+' • '+(e.poseId||'?')+' • ts '+(e.nativeFrameTimestampNs==null?'?':e.nativeFrameTimestampNs);
+      el('imgUnavailableMeta').textContent=(e.sourceScanObservationId!=null?e.sourceScanObservationId:'raw obs '+e.rawObservationId)+' • '+(e.poseId||'?')+' • ts '+(e.nativeFrameTimestampNs==null?'?':e.nativeFrameTimestampNs);
     }
     renderGeometryGuide(e);
     // identity
     var sw=(e.syncStatus==='EXACT_SYNCHRONIZED')?'<span class="sync exact">EXACT_SYNCHRONIZED</span>':'<span class="sync weak">'+(e.syncStatus||'UNKNOWN')+'</span>';
+    // BI-1W: identity mode is shown explicitly. A RAW_SCAN_OBSERVATION entry's
+    // sourceScanObservationId is truthfully null (Part 8) -- show the real raw identity instead
+    // of implying a retained id exists.
+    var idMode = A.identityModeOf(e);
     el('identity').innerHTML=
       row('pose', e.poseId||'—')+row('observed region', e.observedPoseRegion||'—')+
-      row('observation id', e.sourceScanObservationId)+row('timestamp (ns)', e.nativeFrameTimestampNs==null?'—':e.nativeFrameTimestampNs)+
+      row('identity mode', idMode)+
+      (idMode==='RAW_SCAN_OBSERVATION'
+        ? row('scan session', e.scanSessionId||'—')+row('raw observation id', e.rawObservationId==null?'—':e.rawObservationId)+row('adapter retained', e.adapterRetained===true?'yes':'no')
+        : row('observation id', e.sourceScanObservationId))+
+      row('timestamp (ns)', e.nativeFrameTimestampNs==null?'—':e.nativeFrameTimestampNs)+
       row('sync', sw)+row('coherence', e.coherenceStatus||'—')+
       row('yaw / pitch / roll', fmt(e.yawDeg)+' / '+fmt(e.pitchDeg)+' / '+fmt(e.rollDeg))+
       row('image', (e.imageWidth||'?')+' × '+(e.imageHeight||'?')+'  rot '+(e.rotationDegrees||0)+'°'+(e.mirrored?' mirrored':''));
     // regions
     var host=el('regions'); host.innerHTML='';
-    var m=A.entryLabels(state, e.sourceScanObservationId);
+    var entryId=A.entryKey(e);
+    var m=A.entryLabels(state, entryId);
+    // BI-1E PRE-ANNOTATION CORRECTION: two INDEPENDENT badges per region.
+    //   - Geometry badge: is there a trustworthy landmark rail to highlight? (regionVisualReference,
+    //     further downgraded if THIS image's overlay failed the fail-closed / in-bounds check.)
+    //   - Labelability badge: can a human classify this region from the raw photo at all? This is
+    //     what actually gates the HairState options — it no longer depends on geometry support.
+    var overlayOkForImage = A.overlayAvailable(e) && A.overlayPointsInImageBounds(e) !== false;
     (e.regionsToAnnotate||[]).forEach(function(rg){
       var l=m[rg]||A.defaultRegionLabel();
+      var ref=A.regionVisualReference(rg);
+      var lab=A.regionLabelability(rg);
+      var imageBlocksReference = ref.tier!=='UNSUPPORTED' && !overlayOkForImage;
+      var geomCls = imageBlocksReference ? 'unsupported' : (ref.tier==='VERIFIED' ? 'verified' : (ref.tier==='PROXY' ? 'proxy' : 'unsupported'));
+      var geomText = imageBlocksReference ? 'Geometry: unavailable for this image'
+        : (ref.tier==='VERIFIED' ? 'Geometry: verified' : (ref.tier==='PROXY' ? 'Geometry: approximate' : 'Geometry: none'));
+      var labCls = lab.tier==='LABELABLE_FROM_IMAGE' ? 'verified' : (lab.tier==='LABELABLE_WITH_CAUTION' ? 'proxy' : 'unsupported');
+      var labText = lab.tier==='LABELABLE_FROM_IMAGE' ? 'Labelable' : (lab.tier==='LABELABLE_WITH_CAUTION' ? 'Labelable (caution)' : 'Unknown only');
+      var geomNoteText = 'this region normally has a verified reference, but this image’s overlay geometry failed a fail-closed check (see Geometry Guide note)';
+      // For a region with NO geometric ROI but that IS labelable, show semantic guidance
+      // (never a fake coordinate claim) instead of just "no reference".
+      var guidanceText = (ref.tier==='UNSUPPORTED' && lab.semanticDescription)
+        ? 'No verified geometric reference. Look for: ' + lab.semanticDescription
+        : (ref.tier==='UNSUPPORTED' ? ref.note : null);
+      var hsOpts = A.regionAllowedHairStates(rg);
+      // BI-1W Part 2/16 — independent Surface Observability channel. Options are gated the same
+      // way HairState is (regionAllowedSurfaceStates), and the advisory (Part 3) is shown as a
+      // non-blocking note only -- it never rewrites either field.
+      var soOpts = A.regionAllowedSurfaceStates(rg);
+      var soRequired = A.regionRequiresSurfaceObservability(rg);
+      var advisory = A.regionLabelAdvisory(l.hairState, l.surfaceObservability);
       var d=document.createElement('div');
       d.className='region'+(rg===activeRegion?' active':'');
+      d.setAttribute('data-region', rg);
       d.tabIndex=0;
-      d.addEventListener('focus',function(){ activeRegion=rg; markActive(); });
+      d.addEventListener('focus',function(){ activeRegion=rg; markActive(); renderGeometryGuide(e); });
       d.innerHTML='<h3>'+rg+'</h3>'+
-        '<div class="row"><label>HairState</label>'+sel('hs',rg,A.HAIR_STATES,l.hairState,A.HAIR_STATE_DISPLAY)+'</div>'+
+        '<div class="row" style="margin:-4px 0 6px">'+
+          '<span class="tier-badge '+geomCls+'">'+geomText+'</span>'+
+          '<span class="tier-badge '+labCls+'">'+labText+'</span>'+
+        '</div>'+
+        (ref.tier==='VERIFIED' && ref.note ? '<div class="region-ref-note">'+ref.note+'</div>' : '')+
+        (ref.tier==='PROXY' ? '<div class="region-ref-note">'+ref.note+'</div>' : '')+
+        (imageBlocksReference ? '<div class="region-ref-note unsupported">⚠ '+geomNoteText+' — label from the raw photo.</div>' : '')+
+        (guidanceText ? '<div class="region-ref-note'+(lab.semanticDescription?'':' unsupported')+'">'+(lab.semanticDescription?'':'⚠ ')+guidanceText+'</div>' : '')+
+        '<div class="row"><label>HAIR</label>'+sel('hs',rg,hsOpts,l.hairState,A.HAIR_STATE_DISPLAY)+'</div>'+
+        '<div class="row"><label>SKIN SURFACE'+(soRequired?' *':'')+'</label>'+selSurface(rg,soOpts,l.surfaceObservability)+'</div>'+
+        (advisory ? '<div class="region-ref-note unsupported">⚠ '+advisory+'</div>' : '')+
         '<div class="row"><label>Status</label>'+sel('as',rg,A.ANNOTATION_STATUSES,l.annotationStatus,null)+'</div>'+
         '<div class="row"><label>Confidence</label><input type="number" min="0" max="1" step="0.05" data-k="cf" data-r="'+rg+'" value="'+(l.annotationConfidence==null?'':l.annotationConfidence)+'" placeholder="blank = unknown" style="width:150px"></div>'+
         '<div class="row"><label>Notes</label><textarea data-k="nt" data-r="'+rg+'" placeholder="optional">'+(l.notes||'')+'</textarea></div>';
@@ -230,40 +448,568 @@
       'images needing review: <b>'+p.imagesNeedingReview+'</b><br>'+
       'ambiguous labels: <b>'+p.ambiguousLabels+'</b><br>'+
       'excluded labels: <b>'+p.excludedLabels+'</b>';
+    renderContours(e);
+    renderReview(e);
   }
+
+  // ---------- BI-1Y outer-beard contour panel ----------
+  function curContourRecord(){
+    var e=curEntry(), key=A.entryKey(e);
+    return (contourState.byEntry && contourState.byEntry[key]) || {imageWidth:null,imageHeight:null,contours:{}};
+  }
+  function renderContours(e){
+    if(!contourState) return;
+    var types = e.contourTypesToAnnotate || [];
+    var host = el('contours'); host.innerHTML='';
+    if(!types.length){ el('cardContours').hidden=true; renderContourOverlay(e); return; }
+    el('cardContours').hidden=false;
+    var key=A.entryKey(e);
+    var rec = curContourRecord();
+    // BI-1Y CORRECTION (Issue 2): CONTOUR_PENDING_STATUS ('UNSET') is a fourth, non-final state --
+    // it gets its own badge/copy, never displayed or treated as if it were the real answer UNKNOWN.
+    var STATUS_TEXT = {TRACED:'Traced', NOT_TRACEABLE:'Not traceable', UNKNOWN:'Unknown (reviewed)'};
+    STATUS_TEXT[A.CONTOUR_PENDING_STATUS] = 'Not yet reviewed';
+    types.forEach(function(ct){
+      var c = rec.contours[ct] || A.defaultContourInstance();
+      var tracing = (activeContourType===ct);
+      var pending = c.traceabilityStatus===A.CONTOUR_PENDING_STATUS;
+      var badgeCls = c.traceabilityStatus==='TRACED' ? 'traced' : (c.traceabilityStatus==='NOT_TRACEABLE' ? 'not-traceable' : (pending ? 'unset' : 'unknown'));
+      var d=document.createElement('div');
+      d.className='contour-row'+(tracing?' active':'');
+      d.setAttribute('data-contour', ct);
+      d.innerHTML='<h3>'+(A.CONTOUR_TYPE_DISPLAY[ct]||ct)+
+          '<span class="status-badge '+badgeCls+'">'+(STATUS_TEXT[c.traceabilityStatus]||c.traceabilityStatus)+'</span></h3>'+
+        '<div class="contour-def">'+(A.CONTOUR_TYPE_DEFINITIONS[ct]||'')+'</div>'+
+        '<div class="row">'+
+          '<button data-act="trace" data-ct="'+ct+'" class="'+(tracing?'contour-primary':'')+'">'+(tracing?'Tracing… (click image)':'Trace')+'</button>'+
+          '<button data-act="undo" data-ct="'+ct+'" '+(c.points.length?'':'disabled')+'>Undo last point</button>'+
+          '<button data-act="clear" data-ct="'+ct+'" '+((c.points.length||!pending)?'':'disabled')+'>Clear / restart</button>'+
+        '</div>'+
+        '<div class="row muted">points placed: <b>'+c.points.length+'</b> (need '+A.MIN_CONTOUR_POINTS+'+ to finish)</div>'+
+        '<div class="row">'+
+          '<button data-act="finish" data-ct="'+ct+'" '+(c.points.length>=A.MIN_CONTOUR_POINTS?'':'disabled')+'>Finish (mark TRACED)</button>'+
+          '<button data-act="nottraceable" data-ct="'+ct+'">Not traceable</button>'+
+          '<button data-act="unknown" data-ct="'+ct+'">Unknown</button>'+
+        '</div>'+
+        '<div class="row"><label class="muted" style="min-width:64px">Notes</label><textarea data-ct="'+ct+'" data-act="notes" placeholder="optional">'+(c.notes||'')+'</textarea></div>';
+      host.appendChild(d);
+    });
+    host.querySelectorAll('button').forEach(function(btn){ btn.addEventListener('click', onContourButton); });
+    host.querySelectorAll('textarea').forEach(function(t){ t.addEventListener('change', onContourNotes); t.addEventListener('input', onContourNotes); });
+    var p=A.contourProgressCounts(bundle, contourState);
+    el('contourProgressDetail').innerHTML =
+      'explicit decisions: <b>'+p.contoursDecided+'</b> / '+p.contoursRequested+' &nbsp; (<b>'+p.contoursUnset+'</b> not yet reviewed)<br>'+
+      'traced: <b>'+p.contoursTraced+'</b> &nbsp; not traceable: <b>'+p.contoursNotTraceable+'</b> &nbsp; unknown: <b>'+p.contoursUnknown+'</b>';
+    // BI-1Y CORRECTION (Part 4): final contour export is enabled only once every requested
+    // contour instance has an explicit human decision -- UNSET is never confused with "done".
+    el('btnExportContour').disabled = (p.contoursRequested===0) || (p.contoursUnset>0);
+    renderContourOverlay(e);
+  }
+  function onContourButton(ev){
+    var ct=ev.target.getAttribute('data-ct'), act=ev.target.getAttribute('data-act');
+    var e=curEntry(), key=A.entryKey(e);
+    try{
+      if(act==='trace'){ activeContourType = (activeContourType===ct) ? null : ct; }
+      else if(act==='undo'){ contourState=A.undoLastContourPoint(contourState,key,ct); }
+      else if(act==='clear'){ contourState=A.clearContour(contourState,key,ct); if(activeContourType===ct) activeContourType=null; }
+      else if(act==='finish'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'TRACED'); activeContourType=null; }
+      else if(act==='nottraceable'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'NOT_TRACEABLE'); if(activeContourType===ct) activeContourType=null; }
+      else if(act==='unknown'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'UNKNOWN'); if(activeContourType===ct) activeContourType=null; }
+    }catch(err){ toast(err.message); return; }
+    saveContourLocal();
+    render();
+  }
+  function onContourNotes(ev){
+    var ct=ev.target.getAttribute('data-ct');
+    var e=curEntry(), key=A.entryKey(e);
+    contourState=A.setContourNotes(contourState,key,ct,ev.target.value);
+    saveContourLocal();
+  }
+  // Click-to-place: only active while a contour type is selected for tracing. offsetX/offsetY
+  // are in #img's own local box (CSS pixels) -- the browser already inverts the parent stack's
+  // rotate/mirror/zoom transform for us; displayClickToImagePoint only corrects the remaining
+  // CSS-rendered-size -> real natural-pixel-size ratio (Part 4).
+  el('img').addEventListener('click', function(ev){
+    if(!bundle) return;
+    var img=el('img');
+    var p=A.displayClickToImagePoint(ev.offsetX, ev.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
+    if(!p) return;
+    var e=curEntry(), key=A.entryKey(e);
+    // BI-1Y2 "Add point" mode takes priority over BI-1Y contour tracing on the same click --
+    // routed through this SAME already-proven #img click path (never an inner SVG shape's own
+    // offsetX/offsetY, which has known cross-browser viewBox-coordinate inconsistencies) rather
+    // than requiring the user to hit a thin per-segment hit-target exactly. Inserts after the
+    // existing edge whose two endpoints are closest to the click.
+    if(addPointMode && reviewState){
+      var inst=reviewState.byEntry[key] && reviewState.byEntry[key].targets[activeReviewTarget];
+      if(inst && inst.humanFinalPoints && inst.humanFinalPoints.length>1){
+        var pts=inst.humanFinalPoints, bestI=0, bestD=Infinity;
+        for(var i=0;i<pts.length;i++){
+          var a=pts[i], b=pts[(i+1)%pts.length];
+          var d=distToSegment(p,a,b);
+          if(d<bestD){ bestD=d; bestI=i; }
+        }
+        try{ reviewState=A.addHandlePoint(reviewState,key,activeReviewTarget,bestI,p.x,p.y); }catch(err){ toast(err.message); return; }
+        selectedHandle=bestI+1;
+        saveReviewLocal();
+        render();
+      }
+      return;
+    }
+    if(!contourState||!activeContourType) return;
+    contourState=A.addContourPoint(contourState,key,activeContourType,p.x,p.y);
+    saveContourLocal();
+    render();
+  });
+  function distToSegment(p,a,b){
+    var dx=b.x-a.x, dy=b.y-a.y;
+    var len2=dx*dx+dy*dy;
+    var t=len2>0 ? Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len2)) : 0;
+    var cx=a.x+t*dx, cy=a.y+t*dy;
+    return Math.hypot(p.x-cx, p.y-cy);
+  }
+  // Capture the REAL image pixel dimensions (never CSS/display size) the first time each
+  // keyframe decodes, so every contour point on this entry stays reproducible (Part 3/17).
+  el('img').addEventListener('load', function(){
+    var img=el('img');
+    if(!bundle||!contourState||!img.naturalWidth||!img.naturalHeight) return;
+    var e=curEntry(), key=A.entryKey(e);
+    if(!(e.contourTypesToAnnotate||[]).length) return;
+    var rec=curContourRecord();
+    if(rec.imageWidth===img.naturalWidth && rec.imageHeight===img.naturalHeight) return; // no-op, avoid churn
+    contourState=A.setContourImageDimensions(contourState,key,img.naturalWidth,img.naturalHeight);
+    saveContourLocal();
+    renderContourOverlay(e);
+  });
+  function renderContourOverlay(e){
+    var svg=el('contourOverlay');
+    if(!contourState || !A.imageRenderable(e) || !(e.contourTypesToAnnotate||[]).length){
+      svg.style.display='none'; svg.innerHTML=''; return;
+    }
+    var rec=curContourRecord();
+    var img=el('img');
+    var w=rec.imageWidth || img.naturalWidth || 1, h=rec.imageHeight || img.naturalHeight || 1;
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);
+    var parts=[];
+    (e.contourTypesToAnnotate||[]).forEach(function(ct){
+      var c=rec.contours[ct]; if(!c || !c.points.length) return;
+      var pts=c.points.map(function(p){ return p.x+','+p.y; }).join(' ');
+      var dim = (activeContourType && activeContourType!==ct) ? ' dim' : '';
+      parts.push('<polyline class="cline'+dim+'" points="'+pts+'"></polyline>');
+      var r=Math.max(0.8, Math.min(w,h)*0.01);
+      c.points.forEach(function(p){ parts.push('<circle class="cpoint" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>'); });
+    });
+    svg.innerHTML=parts.join('');
+    svg.style.display = parts.length ? 'block' : 'none';
+    el('img').classList.toggle('tracing', !!activeContourType || !!addPointMode);
+  }
+
+  // ---------- BI-1Y2 assisted (machine-proposed, human-verified) beard-boundary review ----
+  var PROPOSAL_ALGORITHM_NAME = 'beard-proposal-otsu-prior-hybrid';
+  function hasPriorHint(e){
+    return !!(e.priorHintPoints && Object.keys(e.priorHintPoints).some(function(k){ return Array.isArray(e.priorHintPoints[k]) && e.priorHintPoints[k].length>1; }));
+  }
+  function curReviewRecord(){
+    var e=curEntry(), key=A.entryKey(e);
+    return (reviewState.byEntry && reviewState.byEntry[key]) || {targets:{}};
+  }
+  /** MACHINE PROPOSES. Runs entirely client-side: decodes the real <img> into pixels via an
+   *  offscreen canvas, builds a rough search-region prior from entry.priorHintPoints (the OLD
+   *  BI-1Y traces -- a spatial hint only, never treated as truth), derives an Otsu darkness
+   *  threshold inside that region, cleans up the result with standard binary morphology + largest-
+   *  connected-component, traces its boundary, and simplifies it to a dense proposal plus a small
+   *  editable handle set. See tools/annotation-workbench/beard-proposal.cjs for every primitive. */
+  function generateProposal(e, target){
+    if(!target){ toast('Proposal generation failed: no review target for this image.'); return; }
+    var img=el('img');
+    var w=img.naturalWidth, h=img.naturalHeight;
+    if(!w||!h){ toast('Proposal generation failed: image pixels unavailable — try again in a moment.'); return; }
+    var off=document.createElement('canvas'); off.width=w; off.height=h;
+    var octx=off.getContext('2d'); octx.drawImage(img,0,0,w,h);
+    var imgData=octx.getImageData(0,0,w,h);
+    var gray=BP.rgbaToGray(imgData.data,w,h);
+
+    // BI-1Z1A Part 4/5 -- STRICT PRIORITY ORDER for the search-region prior:
+    //   1. e.landmarkRoi (fresh, CURRENT-FRAME tracked-landmark ROI -- autonomous, no old human
+    //      trace coordinates involved at all)
+    //   2. e.priorHintPoints (the OLD BI-1Y2 behavior -- old human trace hint; only ever used for
+    //      bundles that predate landmarkRoi, never for a BI-1Z1A bundle)
+    //   3. full frame (no hint of any kind available)
+    // Exactly one of these ever fires per entry -- proposalPriorSource/oldHumanSpatialHintUsed
+    // below records truthfully which one, never inferred after the fact.
+    var hintPolys = Object.values(e.priorHintPoints||{}).filter(function(p){ return Array.isArray(p) && p.length>=3; });
+    var prior, priorSource, oldHintUsed, proposalMode, priorParams;
+    if(e.landmarkRoi && Array.isArray(e.landmarkRoi.polygon) && e.landmarkRoi.polygon.length>=3){
+      prior=BP.fillPolygonMask(e.landmarkRoi.polygon, w, h);
+      priorSource='TRACKED_LOWER_FACE_LANDMARK_ROI'; oldHintUsed=false; proposalMode='AUTONOMOUS_LANDMARK_GUIDED';
+      priorParams={landmarkRoiVersion:e.landmarkRoi.roiConstructionVersion||null, marginPx:e.landmarkRoi.marginPx||null, sourceIndexCount:(e.landmarkRoi.sourceIndices||[]).length};
+    } else if(hintPolys.length){
+      var masks=hintPolys.map(function(poly){ return BP.fillPolygonMask(poly,w,h); });
+      prior=BP.dilateByRadius(BP.unionMasks(masks,w,h), w, h, Math.round(Math.max(w,h)*0.03));
+      priorSource='HUMAN_TRACE_HINT'; oldHintUsed=true; proposalMode='HUMAN_TRACE_HINT_GUIDED';
+      priorParams={priorDilateRadius:Math.round(Math.max(w,h)*0.03)};
+    } else {
+      prior=new Uint8Array(w*h).fill(1); // no hint available -- search the whole frame
+      priorSource='FULL_FRAME_NO_HINT'; oldHintUsed=false; proposalMode='FULL_FRAME_NO_HINT';
+      priorParams={};
+    }
+    var priorVals=[]; for(var i=0;i<gray.length;i++) if(prior[i]) priorVals.push(gray[i]);
+    var hist=BP.histogramOf(priorVals,256);
+    var thresh=BP.otsuThreshold(hist);
+
+    var mask=new Uint8Array(w*h);
+    for(i=0;i<gray.length;i++) if(gray[i]<thresh && prior[i]) mask[i]=1;
+    mask=BP.closeMask(mask,w,h); mask=BP.openMask(mask,w,h);
+    mask=BP.largestComponentMask(mask,w,h); mask=BP.closeMask(mask,w,h);
+
+    var ring=BP.traceBoundaryMoore(mask,w,h);
+    if(!ring){ toast('Proposal generation failed: no beard region found — mark Not traceable instead.'); return; }
+    var fullProposal=BP.simplifyRDP(ring,1.5,true);
+    var handles=BP.reduceToHandles(fullProposal,16);
+
+    var key=A.entryKey(e);
+    // BI-1Y3 fix: persist the REAL decoded natural dimensions into review state so the export
+    // is self-describing (Issue 1) -- never left to fall back to the bundle's own (null)
+    // imageWidth/imageHeight metadata.
+    reviewState=A.setReviewImageDimensions(reviewState,key,w,h);
+    reviewState=A.attachProposal(reviewState,key,target,{
+      algorithm:PROPOSAL_ALGORITHM_NAME, algorithmVersion:BP.PROPOSAL_ALGORITHM_VERSION,
+      parameters:Object.assign({otsuThreshold:thresh, hasHint:priorSource!=='FULL_FRAME_NO_HINT'}, priorParams),
+      generatedAt:new Date().toISOString(),
+      originalProposalPoints:fullProposal, handlePoints:handles,
+      proposalPriorSource:priorSource, machineProposalMode:proposalMode, oldHumanSpatialHintUsed:oldHintUsed
+    });
+    selectedHandle=null;
+    saveReviewLocal();
+    render();
+    toast('Proposal generated ('+handles.length+' points) — review and correct it below.');
+  }
+
+  function renderReview(e){
+    if(!reviewState) return;
+    var targets=e.assistedReviewTargets||[];
+    var host=el('review'); host.innerHTML='';
+    if(!targets.length){ el('cardReview').hidden=true; renderReviewOverlay(e); return; }
+    el('cardReview').hidden=false;
+    var rec=curReviewRecord();
+    var STATUS_TEXT={};
+    STATUS_TEXT[A.REVIEW_PENDING_STATUS]='Not yet reviewed';
+    STATUS_TEXT.APPROVED_AS_IS='Approved as-is'; STATUS_TEXT.EDITED_AND_APPROVED='Edited & approved';
+    STATUS_TEXT.REJECTED='Rejected'; STATUS_TEXT.NOT_TRACEABLE='Not traceable';
+    targets.forEach(function(t){
+      var inst=rec.targets[t] || A.defaultReviewInstance();
+      var hasProposal=!!inst.originalHandlePoints;
+      var pending=inst.humanReviewStatus===A.REVIEW_PENDING_STATUS;
+      var badgeCls = inst.humanReviewStatus==='REJECTED' ? 'rejected'
+        : (inst.humanReviewStatus==='NOT_TRACEABLE' ? 'not-traceable'
+        : (pending ? 'unset' : 'approved'));
+      var d=document.createElement('div');
+      d.className='review-row';
+      d.innerHTML='<h3 style="margin:0 0 6px">'+t.replace(/_/g,' ')+
+          '<span class="status-badge '+badgeCls+'">'+(STATUS_TEXT[inst.humanReviewStatus]||inst.humanReviewStatus)+'</span></h3>'+
+        (hasProposal ? '<div class="row muted">edits: <b>'+inst.editCount+'</b> (moved '+inst.pointsMoved+', added '+inst.pointsAdded+', deleted '+inst.pointsDeleted+')</div>' : '')+
+        '<div class="row">'+
+          '<button data-act="generate" data-t="'+t+'">'+(hasProposal?'Regenerate proposal':'Generate proposal')+'</button>'+
+          (hasProposal ? '<button data-act="reset" data-t="'+t+'">Reset to proposal</button>' : '')+
+          (hasProposal ? '<button data-act="undo" data-t="'+t+'">Undo</button>' : '')+
+          (hasPriorHint(e) ? '<button data-act="togglePrior" data-t="'+t+'" class="'+(showPriorTrace?'review-primary':'')+'">'+(showPriorTrace?'Hide':'Show')+' previous human trace</button>' : '')+
+          (hasProposal ? '<button data-act="toggleProposalVisible" data-t="'+t+'" class="'+(hideProposal?'review-primary':'')+'">'+(hideProposal?'Show machine proposal':'Hide machine proposal')+'</button>' : '')+
+          (Array.isArray(e.jawDiagnosticLandmarks)&&e.jawDiagnosticLandmarks.length ? '<button data-act="toggleJawDiagnostic" data-t="'+t+'" class="'+(showJawDiagnostic?'review-primary':'')+'">'+(showJawDiagnostic?'Hide':'Show')+' jaw landmarks (diagnostic)</button>' : '')+
+        '</div>'+
+        (hideProposal ? '<div class="row muted">Machine proposal hidden — inspect the human-final outline against the image alone before approving.</div>' : '')+
+        (hasPriorHint(e) ? '<div class="row muted">The dotted gray reference is the OLD BI-1Y manual trace — reference only, never re-approved as-is.</div>' : '')+
+        (hasProposal ? (
+        '<div class="row">'+
+          '<button data-act="addmode" data-t="'+t+'" class="'+(addPointMode?'review-primary':'')+'">'+(addPointMode?'Click a line to add point…':'Add point')+'</button>'+
+          '<button data-act="delete" data-t="'+t+'" '+(selectedHandle!=null?'':'disabled')+'>Delete selected point</button>'+
+        '</div>'+
+        '<div class="row">'+
+          '<button data-act="approve" data-t="'+t+'" class="review-primary">Approve as-is</button>'+
+          '<button data-act="approveEdited" data-t="'+t+'">Approve corrected</button>'+
+          '<button data-act="reject" data-t="'+t+'">Reject proposal</button>'+
+          '<button data-act="nottraceable" data-t="'+t+'">Not traceable</button>'+
+        '</div>'
+        ) : '<div class="row muted">No proposal yet for this image — click Generate proposal.</div>')+
+        '<div class="row"><label class="muted" style="min-width:64px">Notes</label><textarea data-t="'+t+'" data-act="notes" placeholder="optional">'+(inst.notes||'')+'</textarea></div>';
+      host.appendChild(d);
+    });
+    host.querySelectorAll('button').forEach(function(b){ b.addEventListener('click', onReviewButton); });
+    host.querySelectorAll('textarea').forEach(function(t){ t.addEventListener('change', onReviewNotes); t.addEventListener('input', onReviewNotes); });
+    var p=A.reviewProgressCounts(bundle, reviewState);
+    el('reviewProgressDetail').innerHTML =
+      'reviewed: <b>'+p.decided+'</b> / '+p.targetsRequested+' &nbsp; (<b>'+p.unreviewed+'</b> not yet reviewed)<br>'+
+      'approved as-is: <b>'+p.approvedAsIs+'</b> &nbsp; edited &amp; approved: <b>'+p.editedApproved+'</b><br>'+
+      'rejected: <b>'+p.rejected+'</b> &nbsp; not traceable: <b>'+p.notTraceable+'</b>';
+    el('btnExportReview').disabled = (p.targetsRequested===0) || (p.unreviewed>0);
+    renderReviewOverlay(e);
+  }
+  function onReviewButton(ev){
+    var t=ev.target.getAttribute('data-t'), act=ev.target.getAttribute('data-act');
+    // BI-1Z1A.1 BUGFIX -- every per-target button carries its own real data-t; keep the shared
+    // "currently active target" in sync with it so the non-button paths that don't have a data-t
+    // of their own (Add-point click-to-insert, the magnifier, keyboard delete/nudge) stay correct.
+    if(t) activeReviewTarget=t;
+    var e=curEntry(), key=A.entryKey(e);
+    try{
+      if(act==='generate'){ generateProposal(e, t); return; }
+      else if(act==='undo'){ reviewState=A.undoLastEdit(reviewState,key,t); }
+      else if(act==='reset'){ reviewState=A.resetToProposal(reviewState,key,t); selectedHandle=null; }
+      else if(act==='addmode'){ addPointMode=!addPointMode; render(); return; }
+      else if(act==='togglePrior'){ showPriorTrace=!showPriorTrace; render(); return; }
+      else if(act==='toggleProposalVisible'){ hideProposal=!hideProposal; render(); return; }
+      else if(act==='toggleJawDiagnostic'){ showJawDiagnostic=!showJawDiagnostic; render(); return; }
+      else if(act==='delete'){
+        if(selectedHandle==null) return;
+        reviewState=A.deleteHandlePoint(reviewState,key,t,selectedHandle);
+        selectedHandle=null;
+      }
+      else if(act==='approve'){ reviewState=A.setReviewStatus(reviewState,key,t,'APPROVED_AS_IS'); }
+      else if(act==='approveEdited'){ reviewState=A.setReviewStatus(reviewState,key,t,'EDITED_AND_APPROVED'); }
+      else if(act==='reject'){ reviewState=A.setReviewStatus(reviewState,key,t,'REJECTED'); selectedHandle=null; }
+      else if(act==='nottraceable'){ reviewState=A.setReviewStatus(reviewState,key,t,'NOT_TRACEABLE'); selectedHandle=null; }
+    }catch(err){ toast(err.message); return; }
+    saveReviewLocal();
+    render();
+  }
+  function onReviewNotes(ev){
+    var t=ev.target.getAttribute('data-t');
+    var e=curEntry(), key=A.entryKey(e);
+    reviewState=A.setReviewNotes(reviewState,key,t,ev.target.value);
+    saveReviewLocal();
+  }
+
+  function renderReviewOverlay(e){
+    var svg=el('reviewOverlay');
+    var targets=e.assistedReviewTargets||[];
+    if(!reviewState || !A.imageRenderable(e) || !targets.length){
+      svg.style.display='none'; svg.innerHTML=''; hideMagnifier(); return;
+    }
+    var img=el('img');
+    var w=img.naturalWidth||1, h=img.naturalHeight||1;
+    svg.setAttribute('viewBox','0 0 '+w+' '+h);
+    var rec=curReviewRecord();
+    var parts=[];
+    // Optional reference layer: the OLD BI-1Y manual traces, shown only on request, styled
+    // clearly distinct from both the machine proposal and the human-final shape -- reference
+    // only, never re-approved as-is, never modified by anything in this stage.
+    if(showPriorTrace && e.priorHintPoints){
+      Object.keys(e.priorHintPoints).forEach(function(k){
+        var pts=e.priorHintPoints[k]; if(!Array.isArray(pts)||pts.length<2) return;
+        var pp=pts.map(function(p){ return p.x+','+p.y; }).join(' ');
+        parts.push('<polyline class="priorTrace" points="'+pp+'"></polyline>');
+      });
+    }
+    // BI-1Z1A (Part 12) -- jaw/chin landmarks are NEVER shown during normal review (the human
+    // traces what is visually beard, not where tracking says beard ought to be); this diagnostic
+    // layer only renders when the entry carries pre-computed landmark points AND the developer has
+    // explicitly turned the toggle on (default off, see showJawDiagnostic declaration).
+    if(showJawDiagnostic && Array.isArray(e.jawDiagnosticLandmarks)){
+      e.jawDiagnosticLandmarks.forEach(function(p){
+        parts.push('<circle class="jawDiagnostic" cx="'+p.x+'" cy="'+p.y+'" r="'+Math.max(1.5,Math.min(w,h)*0.012)+'"></circle>');
+      });
+    }
+    targets.forEach(function(t){
+      var inst=rec.targets[t]; if(!inst) return;
+      // BI-1Z1A (Part 12) -- "Hide machine proposal" lets the human inspect their corrected
+      // outline against the raw image alone, with no proposal shape anchoring their judgment.
+      if(!hideProposal && Array.isArray(inst.originalProposalPoints) && inst.originalProposalPoints.length>1){
+        var pp=inst.originalProposalPoints.map(function(p){ return p.x+','+p.y; }).join(' ');
+        parts.push('<polygon class="proposalLine" points="'+pp+'"></polygon>');
+      }
+      var pts=inst.humanFinalPoints||[];
+      if(pts.length>1){
+        var fp=pts.map(function(p){ return p.x+','+p.y; }).join(' ');
+        parts.push('<polygon class="finalLine" points="'+fp+'"></polygon>');
+        // invisible thick hit-targets on each edge segment, for "Add point" mode
+        for(var i=0;i<pts.length;i++){
+          var a=pts[i], b=pts[(i+1)%pts.length];
+          parts.push('<line class="segHit" data-t="'+t+'" data-after="'+i+'" x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'"></line>');
+        }
+        var r=Math.max(1.2, Math.min(w,h)*0.012);
+        pts.forEach(function(p,i){
+          var cls='handle'+(selectedHandle===i?' selected':'');
+          parts.push('<circle class="'+cls+'" data-t="'+t+'" data-i="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
+        });
+      }
+    });
+    svg.innerHTML=parts.join('');
+    svg.style.display='block';
+    svg.querySelectorAll('.handle').forEach(function(c){
+      c.style.pointerEvents='auto';
+      c.addEventListener('pointerdown', onHandlePointerDown);
+      c.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    });
+    // segHit lines are decorative only (pointer-events:none) -- "Add point" is handled by the
+    // #img click handler below via nearest-edge insertion, never by an inner SVG shape's own
+    // offsetX/offsetY (see that handler's comment for why).
+    if(selectedHandle!=null) drawMagnifier(e); else hideMagnifier();
+  }
+  // Drag uses Pointer Capture on the SVG overlay rather than document mousemove + a manual
+  // getBoundingClientRect offset: that manual-offset approach silently breaks under rotation
+  // (getBoundingClientRect only ever returns an axis-aligned box, so it cannot recover a rotated
+  // element's own local x/y). Pointer capture keeps every subsequent pointermove/pointerup
+  // event's native offsetX/offsetY correctly expressed in the capturing element's own local,
+  // post-transform-inversion frame -- the SAME robust mechanism the BI-1Y contour click handler
+  // already relies on (displayClickToImagePoint), even while the cursor moves outside the image.
+  // #reviewOverlay is sized/positioned identically to #img inside the same transformed #imgStack,
+  // so its local frame and #img's are numerically identical.
+  function onHandlePointerDown(ev){
+    ev.preventDefault(); ev.stopPropagation();
+    var t=ev.target.getAttribute('data-t'), i=parseInt(ev.target.getAttribute('data-i'),10);
+    selectedHandle=i;
+    dragging={target:t, index:i};
+    var svg=el('reviewOverlay');
+    try{ svg.setPointerCapture(ev.pointerId); }catch(_e){}
+    // BI-1Y3 (Part 10) — gesture-level telemetry, tracked here in the UI (not per-pointermove in
+    // the data layer): remember the START position and accumulate the path walked, then record
+    // ONE drag-gesture entry on release via A.recordDragGesture. moveHandlePoint's own
+    // editCount/pointsMoved are untouched/unchanged (kept for backward provenance, see BI-1Y3).
+    var startEntry=curEntry(), startKey=A.entryKey(startEntry);
+    var startInst=reviewState.byEntry[startKey] && reviewState.byEntry[startKey].targets[t];
+    var gestureStart = startInst && startInst.humanFinalPoints[i] ? {x:startInst.humanFinalPoints[i].x, y:startInst.humanFinalPoints[i].y} : null;
+    var lastPoint = gestureStart, pathAccum = 0;
+    render();
+    function onMove(mv){
+      if(!dragging) return;
+      var img=el('img');
+      var p=A.displayClickToImagePoint(mv.offsetX, mv.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
+      if(!p) return;
+      var e=curEntry(), key=A.entryKey(e);
+      try{ reviewState=A.moveHandlePoint(reviewState,key,dragging.target,dragging.index,p.x,p.y); }catch(_e){ return; }
+      if(lastPoint){ pathAccum += Math.hypot(p.x-lastPoint.x, p.y-lastPoint.y); }
+      lastPoint = p;
+      renderReviewOverlay(e);
+      drawMagnifier(e);
+    }
+    function onUp(mv){
+      dragging=null;
+      svg.removeEventListener('pointermove', onMove);
+      svg.removeEventListener('pointerup', onUp);
+      try{ svg.releasePointerCapture(mv.pointerId); }catch(_e){}
+      if(gestureStart && lastPoint && (gestureStart.x!==lastPoint.x || gestureStart.y!==lastPoint.y)){
+        var netDisp=Math.hypot(lastPoint.x-gestureStart.x, lastPoint.y-gestureStart.y);
+        try{ reviewState=A.recordDragGesture(reviewState,startKey,t,i,pathAccum,netDisp); }catch(_e){}
+      }
+      saveReviewLocal();
+      render();
+    }
+    svg.addEventListener('pointermove', onMove);
+    svg.addEventListener('pointerup', onUp);
+  }
+  // ---------- precision correction: magnified crop + keyboard nudge ----------
+  function hideMagnifier(){ el('magnifier').hidden=true; }
+  function drawMagnifier(e){
+    if(selectedHandle==null || !A.imageRenderable(e)) { hideMagnifier(); return; }
+    var rec=curReviewRecord(); var inst=rec.targets[activeReviewTarget];
+    if(!inst || !inst.humanFinalPoints[selectedHandle]) { hideMagnifier(); return; }
+    var p=inst.humanFinalPoints[selectedHandle];
+    var img=el('img'); var mag=el('magCanvas'); var mctx=mag.getContext('2d');
+    var zoom=6, half=mag.width/(2*zoom);
+    mctx.imageSmoothingEnabled=false;
+    mctx.clearRect(0,0,mag.width,mag.height);
+    mctx.drawImage(img, p.x-half, p.y-half, half*2, half*2, 0, 0, mag.width, mag.height);
+    mctx.strokeStyle='#b58bf0'; mctx.lineWidth=1;
+    mctx.beginPath(); mctx.moveTo(mag.width/2,0); mctx.lineTo(mag.width/2,mag.height);
+    mctx.moveTo(0,mag.height/2); mctx.lineTo(mag.width,mag.height/2); mctx.stroke();
+    el('magnifier').hidden=false;
+  }
+  document.addEventListener('keydown', function(ev){
+    if(selectedHandle==null || !bundle || !reviewState) return;
+    var tag=(ev.target&&ev.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    var delta = ev.shiftKey ? 5 : 1;
+    var dx=0, dy=0;
+    if(ev.key==='ArrowLeft') dx=-delta; else if(ev.key==='ArrowRight') dx=delta;
+    else if(ev.key==='ArrowUp') dy=-delta; else if(ev.key==='ArrowDown') dy=delta;
+    else if(ev.key==='Delete' || ev.key==='Backspace'){
+      var e0=curEntry(), key0=A.entryKey(e0);
+      try{ reviewState=A.deleteHandlePoint(reviewState,key0,activeReviewTarget,selectedHandle); selectedHandle=null; saveReviewLocal(); render(); }catch(err){ toast(err.message); }
+      ev.preventDefault();
+      return;
+    }
+    else return;
+    ev.preventDefault();
+    var e=curEntry(), key=A.entryKey(e);
+    try{ reviewState=A.nudgeHandlePoint(reviewState,key,activeReviewTarget,selectedHandle,dx,dy); }catch(err){ return; }
+    saveReviewLocal();
+    render();
+  });
+
   // ---------- geometry guide (optional, default OFF) ----------
   // Shows verified jaw/chin/cheek/mouth-reference landmark rails ONLY, and only when the
   // loaded bundle entry carries annotation-overlay-data/1. It is anatomy reference — NOT
   // beard detection. Under-jaw / neck stay intentionally unassisted.
+  // Selecting a region card highlights that region's group automatically (independent of the
+  // manual "Geometry Guide" toggle, which shows ALL groups as a general reference). The active
+  // region's tier (from A.regionVisualReference) decides what happens:
+  //   VERIFIED    -> that group's rail/points drawn with a solid highlight
+  //   PROXY       -> that group's rail/points drawn dashed/amber + its caveat surfaced in geomNote
+  //   UNSUPPORTED -> nothing is drawn for it (no ROI is invented) + an explicit warning note
+  function regionReferenceNoteFor(ref, lab){
+    if(!ref) return '';
+    if(ref.tier==='VERIFIED') return 'Highlighted = verified anatomical reference for this region.'+(ref.note?(' ('+ref.note+')'):'');
+    if(ref.tier==='PROXY') return 'Highlighted (dashed) = APPROXIMATE reference only — '+ref.note;
+    // ref.tier === 'UNSUPPORTED': no geometry to draw. Whether that also means "Unknown only"
+    // depends on semantic labelability, NOT on geometry support (BI-1E correction) — say so
+    // accurately rather than implying labeling is blocked when it may not be.
+    if(lab && lab.tier!=='UNKNOWN_ONLY'){
+      return '⚠ No verified geometric reference for this region. ' + (lab.semanticDescription ? ('Look for: ' + lab.semanticDescription) : '') + ' Labeling from the raw photo is still allowed.';
+    }
+    return '⚠ NO VERIFIED VISUAL REFERENCE for this region (' + ref.note + '). Labeling is restricted to Unknown for this experiment.';
+  }
   function renderGeometryGuide(e){
     var svg=el('geomOverlay'), btn=el('btnGeom'), note=el('geomNote');
-    var available = A.imageRenderable(e) && A.overlayAvailable(e);
-    var on = !!(state && state.geometryGuide) && available;
+    var geomOk = A.imageRenderable(e) && A.overlayAvailable(e);
+    var boundsOk = geomOk ? A.overlayPointsInImageBounds(e) : null; // null = unknown, don't block on it
+    var available = geomOk && boundsOk !== false;
+    var manualOn = !!(state && state.geometryGuide) && available;
     btn.disabled = !available;
-    btn.textContent = 'Geometry Guide: ' + (!available ? 'N/A' : (on ? 'ON' : 'OFF'));
+    btn.textContent = 'Geometry Guide: ' + (!available ? 'N/A' : (manualOn ? 'ON' : 'OFF'));
+    var ref = activeRegion ? A.regionVisualReference(activeRegion) : null;
+    var lab = activeRegion ? A.regionLabelability(activeRegion) : null;
+    var activeGroupId = (ref && ref.tier !== 'UNSUPPORTED') ? ref.overlayGroupId : null;
     if(!available){
       svg.style.display='none'; svg.innerHTML='';
       if(!A.imageRenderable(e)){ note.textContent=''; return; }
+      if(geomOk && boundsOk===false){
+        // A real BI-1E finding: the converted landmarks pass every identity/schema check but land
+        // outside this specific image's frame (orientation mismatch of unknown cause). Rendering
+        // them would be either invisible or, worse, visibly wrong — so nothing is drawn, and this
+        // is said plainly rather than silently compensated with a guessed rotation.
+        note.textContent = 'GEOMETRY GUIDE UNAVAILABLE — computed landmark positions fall outside this image’s frame (image/landmark orientation mismatch). Not rendered, rather than shown in the wrong place. Label this image from the raw photo.';
+        return;
+      }
       var why = (A.overlayUnavailableReason ? A.overlayUnavailableReason(e) : null);
       note.textContent = (e && e.overlayData)
         ? ('GEOMETRY GUIDE UNAVAILABLE — verified overlay geometry failed a fail-closed check' + (why ? ' (' + why + ')' : '') + '.')
         : 'GEOMETRY GUIDE UNAVAILABLE — this bundle carries no verified image-space geometry.';
       return;
     }
-    note.textContent = on
+    var wantGroupIds = manualOn ? A.OVERLAY_GROUP_IDS.slice() : [];
+    if(activeGroupId && wantGroupIds.indexOf(activeGroupId)===-1) wantGroupIds.push(activeGroupId);
+    if(!manualOn && !activeGroupId){
+      svg.style.display='none'; svg.innerHTML='';
+      note.textContent = activeRegion ? regionReferenceNoteFor(ref, lab) : 'Optional verified anatomy reference is available for this image.';
+      return;
+    }
+    var baseNote = manualOn
       ? 'Overlay = tracked anatomy reference (verified jaw / chin / cheek / mouth landmarks). NOT beard detection. Under-jaw / neck are intentionally unassisted.'
-      : 'Optional verified anatomy reference is available for this image.';
-    if(!on){ svg.style.display='none'; svg.innerHTML=''; return; }
-    var m=A.overlayDisplayModel(e);
+      : '';
+    note.textContent = (activeRegion ? regionReferenceNoteFor(ref, lab) : '') + (activeRegion && baseNote ? '  ' : '') + baseNote;
+    var m=A.overlayDisplayModel(e, {groupIds: wantGroupIds});
     if(!m){ svg.style.display='none'; svg.innerHTML=''; return; }
     svg.setAttribute('viewBox','0 0 '+(m.viewBox.w||1)+' '+(m.viewBox.h||1));
+    var proxy = !!(ref && ref.tier==='PROXY');
     var parts=[];
     (m.groups||[]).forEach(function(g){
-      if(g.points.length>1) parts.push('<polyline class="rail" points="'+g.polyline+'"></polyline>');
+      if(g.points.length>1){
+        var cls = (g.id===activeGroupId) ? 'rail active-region'+(proxy?' proxy':'') : 'rail';
+        parts.push('<polyline class="'+cls+'" points="'+g.polyline+'"></polyline>');
+      }
     });
     (m.points||[]).forEach(function(p){
       var r=Math.max(0.6, Math.min(m.viewBox.w||64, m.viewBox.h||48)*0.012);
-      parts.push('<circle class="node" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
+      var cls = (p.group===activeGroupId) ? 'node active-region'+(proxy?' proxy':'') : 'node';
+      parts.push('<circle class="'+cls+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
     });
     svg.innerHTML=parts.join('');
     svg.style.display='block';
@@ -280,12 +1026,21 @@
     var o=opts.map(function(x){ var t=(disp&&disp[x])?(disp[x]+'  ['+x+']'):x; return '<option value="'+x+'"'+(x===val?' selected':'')+'>'+t+'</option>'; }).join('');
     return '<select data-k="'+kind+'" data-r="'+region+'">'+o+'</select>';
   }
-  function markActive(){ document.querySelectorAll('.region').forEach(function(d){ d.classList.toggle('active', d.querySelector('h3')&&d.querySelector('h3').textContent===activeRegion); }); }
+  // BI-1W Part 4: surfaceObservability starts null ("not yet set", never a real choice) --
+  // render an explicit placeholder for that state rather than letting the browser default to
+  // silently pre-selecting the first real option.
+  function selSurface(region,opts,val){
+    var placeholder='<option value="" '+(val==null?'selected':'')+' disabled>— not yet set —</option>';
+    var o=opts.map(function(x){ var t=A.SURFACE_OBSERVABILITY_DISPLAY[x]?(A.SURFACE_OBSERVABILITY_DISPLAY[x]+'  ['+x+']'):x; return '<option value="'+x+'"'+(x===val?' selected':'')+'>'+t+'</option>'; }).join('');
+    return '<select data-k="so" data-r="'+region+'">'+placeholder+o+'</select>';
+  }
+  function markActive(){ document.querySelectorAll('.region').forEach(function(d){ d.classList.toggle('active', d.getAttribute('data-region')===activeRegion); }); }
 
   function onField(ev){
     var c=ev.target, region=c.getAttribute('data-r'), kind=c.getAttribute('data-k');
-    var e=curEntry(), id=e.sourceScanObservationId, patch={};
+    var e=curEntry(), id=A.entryKey(e), patch={};
     if(kind==='hs') patch.hairState=c.value;
+    else if(kind==='so'){ if(c.value==='') return; patch.surfaceObservability=c.value; }
     else if(kind==='as') patch.annotationStatus=c.value;
     else if(kind==='cf') patch.annotationConfidence=(c.value===''?null:c.value);
     else if(kind==='nt') patch.notes=c.value;
@@ -296,8 +1051,8 @@
     el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
   }
 
-  el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; saveLocal(); render(); });
-  el('btnNext').addEventListener('click', function(){ state=A.navigate(state, 1,bundle.entries.length); activeRegion=null; saveLocal(); render(); });
+  el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; activeContourType=null; selectedHandle=null; addPointMode=false; saveLocal(); render(); });
+  el('btnNext').addEventListener('click', function(){ state=A.navigate(state, 1,bundle.entries.length); activeRegion=null; activeContourType=null; selectedHandle=null; addPointMode=false; saveLocal(); render(); });
   el('zoom').addEventListener('input', function(){ if(bundle) render(); });
   el('btnFit').addEventListener('click', function(){ el('zoom').value=1; if(bundle) render(); });
 
@@ -309,7 +1064,8 @@
     if(!map[ev.key]) return;
     ev.preventDefault();
     var e=curEntry();
-    try{ state=A.setRegionLabel(state,e.sourceScanObservationId,activeRegion,{hairState:map[ev.key]}); }catch(_e){ return; }
+    try{ state=A.setRegionLabel(state,A.entryKey(e),activeRegion,{hairState:map[ev.key]}); }
+    catch(err){ toast(err.message); return; }
     saveLocal(); render(); markActive();
     toast(activeRegion+' → '+map[ev.key]);
   });
@@ -325,6 +1081,36 @@
     var a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
     a.download=(bundle.bundleId||'annotation')+'.groundtruth.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  });
+
+  // ---------- BI-1Y contour export ----------
+  el('btnExportContour').addEventListener('click', function(){
+    var exp=A.buildContourExport(bundle,contourState,{exportedAt:new Date().toISOString()});
+    var v=A.validateContourExport(exp,bundle);
+    if(!v.ok){ toast('Export blocked: '+v.errors[0]); return; }
+    var s=exp.summary;
+    toast('Contour export: '+s.traced+' traced · '+s.notTraceable+' not traceable · '+s.unknown+' unknown');
+    var blob=new Blob([JSON.stringify(exp,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(bundle.bundleId||'annotation')+'.contour-groundtruth.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  });
+
+  // ---------- BI-1Y2 assisted-review export ----------
+  el('btnExportReview').addEventListener('click', function(){
+    var exp=A.buildAssistedReviewExport(bundle,reviewState,{exportedAt:new Date().toISOString()});
+    var v=A.validateAssistedReviewExport(exp,bundle);
+    if(!v.ok){ toast('Export blocked: '+v.errors[0]); return; }
+    var s=exp.summary;
+    toast('Assisted review export: '+s.approvedAsIs+' approved as-is · '+s.editedApproved+' edited & approved · '+s.rejected+' rejected · '+s.notTraceable+' not traceable');
+    var blob=new Blob([JSON.stringify(exp,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=(bundle.bundleId||'annotation')+'.assisted-review-groundtruth.json';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
   });

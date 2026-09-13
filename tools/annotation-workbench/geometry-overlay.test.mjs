@@ -202,18 +202,21 @@ test('20: export carries no overlay / geometry-guide / landmark fields', () => {
   const b = overlayBundle();
   let st = AWB.initAnnotationState(b);
   st = AWB.setGeometryGuide(st, true);
-  st = AWB.setRegionLabel(st, b.entries[0].sourceScanObservationId, 'CHIN_CENTER', { hairState: 'BOUNDARY', annotationStatus: 'LABELED' });
+  st = AWB.setRegionLabel(st, b.entries[0].sourceScanObservationId, 'CHIN_CENTER', { hairState: 'NON_BEARD_CONFIRMED', annotationStatus: 'LABELED' });
   const exp = AWB.buildExport(b, st);
   const json = JSON.stringify(exp);
   for (const bad of ['overlayData', 'geometryGuide', 'landmark', 'overlayPoints', 'jawChinRail']) {
     assert.equal(json.toLowerCase().includes(bad.toLowerCase()), false, 'export must not contain ' + bad);
   }
-  // labels keep exactly the BS1-F shape
+  // labels keep exactly the BS1-F shape, plus BI-1W's additive dual-channel / raw-identity fields
+  // (surfaceObservability, identityMode, rawObservationId, adapterRetained) — schema grows only
+  // by adding keys, never by renaming or removing any historical one.
   for (const l of exp.labels) {
     assert.deepEqual(Object.keys(l).sort(), [
-      'anatomicalRegion', 'annotationConfidence', 'annotationStatus', 'hairState', 'imageRef',
-      'labelId', 'nativeFrameTimestampNs', 'notes', 'observedPoseRegion', 'poseId', 'revision',
-      'scanSessionId', 'sourceMethod', 'sourceScanObservationId', 'syncStatus'
+      'adapterRetained', 'anatomicalRegion', 'annotationConfidence', 'annotationStatus',
+      'hairState', 'identityMode', 'imageRef', 'labelId', 'nativeFrameTimestampNs', 'notes',
+      'observedPoseRegion', 'poseId', 'rawObservationId', 'revision', 'scanSessionId',
+      'sourceMethod', 'sourceScanObservationId', 'surfaceObservability', 'syncStatus'
     ]);
   }
 });
@@ -540,4 +543,22 @@ test('51: a valid point array still renders (no regression from the null guard)'
   const b = overlayBundle();
   assert.equal(AWB.overlayAvailable(b.entries[0]), true);
   assert.equal(AWB.overlayAvailable(b.entries[1]), true);
+});
+
+// 52 — BI-1E finding: a real session produced an overlay that passes every identity/schema/
+// group check (overlayAvailable stays true, matching its documented "diagnostic only, out-of-
+// frame is allowed" contract) yet whose points land outside the image frame. The workbench's
+// region-highlight feature must not treat that as trustworthy: overlayPointsInImageBounds is the
+// pre-existing diagnostic it composes with overlayAvailable to decide whether to actually draw.
+test('52: points outside the image frame stay overlayAvailable=true (unchanged contract) but overlayPointsInImageBounds=false', () => {
+  const e = entry0WithPoints([
+    { index: 152, x: -110, y: 291, group: 'jaw-chin' }, // real out-of-frame shape found in BI-1E
+    { index: 172, x: 56, y: 278, group: 'jaw-chin' }
+  ]);
+  assert.equal(AWB.overlayAvailable(e), true, 'the render-validation gate contract is unchanged');
+  assert.equal(AWB.overlayPointsInImageBounds(e), false);
+  // this is the exact composition the workbench UI uses to decide whether a region highlight
+  // (or the manual Geometry Guide toggle) may actually be shown as trustworthy.
+  const uiTrustworthy = AWB.overlayAvailable(e) && AWB.overlayPointsInImageBounds(e) !== false;
+  assert.equal(uiTrustworthy, false);
 });

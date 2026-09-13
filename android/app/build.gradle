@@ -13,7 +13,17 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        buildConfigField "int", "TRACKING_BRIDGE_VERSION", "1"
+
         testInstrumentationRunner = "android.app.Instrumentation"
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    sourceSets {
+        main.assets.srcDir("$buildDir/generated/beardTrimMapAssets")
     }
 
     buildTypes {
@@ -32,8 +42,39 @@ android {
         warningsAsErrors = true
         disable += "AndroidGradlePluginVersion"
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
+    def cameraXVersion = "1.6.1"
+
+    implementation "androidx.activity:activity:1.13.0"
+    implementation "androidx.fragment:fragment-ktx:1.9.0"
+    implementation "androidx.camera:camera-camera2:${cameraXVersion}"
+    implementation "androidx.camera:camera-core:${cameraXVersion}"
+    implementation "androidx.camera:camera-lifecycle:${cameraXVersion}"
+    implementation "androidx.camera:camera-view:${cameraXVersion}"
+    implementation "androidx.webkit:webkit:1.17.0"
+    implementation "com.google.ar:core:1.54.0"
+    implementation "com.google.mlkit:face-mesh-detection:16.0.0-beta3"
+    //noinspection NewerVersionAvailable
+    implementation "org.opencv:opencv:4.12.0"
     testImplementation "junit:junit:4.13.2"
+}
+
+task validateJsSyntax(type: Exec) {
+    commandLine "node", "src/test/java/com/beardtrimmap/app/JsSyntaxValidator.cjs", "../../index.html"
+    workingDir projectDir
+}
+
+def syncBeardTrimMapAssets = tasks.register("syncBeardTrimMapAssets", Sync) {
+    dependsOn(validateJsSyntax)
+    from(rootProject.file("../index.html"))
+    into(layout.buildDirectory.dir("generated/beardTrimMapAssets"))
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(syncBeardTrimMapAssets)
 }

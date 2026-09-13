@@ -1,10 +1,9 @@
 <resources>
-    <style name="Theme.BeardTrimMap" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.BeardTrimMap" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#4F46E5</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">#D9AD59</item>
+        <item name="android:navigationBarColor">#070B0D</item>
+        <item name="android:statusBarColor">#070B0D</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
-
