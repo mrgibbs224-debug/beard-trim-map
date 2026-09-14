@@ -20,9 +20,17 @@
   #stage{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
   #imageWrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#0e1013;position:relative}
   #imgStack{position:relative;line-height:0;transform-origin:center center}
-  #img{max-width:96%;max-height:96%;image-rendering:auto;background:#222;display:block}
+  /* BI-2F0A.2 ROOT-CAUSE FIX -- browsers natively make <img> draggable (a ghost-drag that looks
+     exactly like "the whole image pans"). draggable="false" on the element plus these two
+     properties belt-and-suspenders disable that native behavior everywhere, so a pointerdown
+     that fails to land on a vertex hit target does nothing instead of starting a native drag. */
+  #img{max-width:96%;max-height:96%;image-rendering:auto;background:#222;display:block;-webkit-user-drag:none;user-select:none}
   /* the overlay is authored in RAW image-pixel space and sits in the SAME transformed
-     wrapper as the image, so rotation + mirroring are byte-identical for both. */
+     wrapper as the image, so rotation + mirroring are byte-identical for both.
+     BI-2F0A.1: inset:0/width:100%/height:100% here are only a FALLBACK for the instant before
+     JS first measures #img's real box -- syncOverlayGeometry() (called on load/render/resize)
+     always overrides left/top/width/height with #img's own measured offsetLeft/Top/Width/Height,
+     which is the actual coordinate-drift fix (see precision-annotation-core.cjs). */
   #geomOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none}
   #geomOverlay .rail{fill:none;stroke:#8ea0b5;stroke-width:1.1;stroke-opacity:.55;vector-effect:non-scaling-stroke}
   #geomOverlay .node{fill:#aab6c4;fill-opacity:.7;stroke:#0e1013;stroke-width:.4;vector-effect:non-scaling-stroke}
@@ -38,11 +46,22 @@
   #contourOverlay .cline{fill:none;stroke:var(--contour);stroke-width:2.2;stroke-opacity:.9;vector-effect:non-scaling-stroke}
   #contourOverlay .cline.dim{stroke:var(--contour-dim);stroke-dasharray:4 3}
   #contourOverlay .cpoint{fill:var(--contour);stroke:#0e1013;stroke-width:.6;vector-effect:non-scaling-stroke}
+  /* BI-2F0A.2 -- contour vertices become real editable controls: a comfortably larger invisible
+     hit target (cHit) sits over each visible point (cpoint stays visually precise/unchanged
+     size), opts back into pointer-events so its click/drag never falls through to #img/native
+     image-drag or a "pan". Selected state gets an obvious highlight ring. */
+  #contourOverlay .cHit{fill:transparent;stroke:none;pointer-events:auto;cursor:grab}
+  #contourOverlay .cpoint.selected{fill:#fff;stroke:var(--contour);stroke-width:1.4}
   #img.tracing{cursor:crosshair}
   .contour-row{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel)}
   .contour-row.active{outline:2px solid var(--contour)}
   .contour-row h3{margin:0 0 6px;font-size:13.5px}
   .contour-def{font-size:11.5px;color:var(--muted);margin:0 0 8px}
+  /* BI-2F0A.3 -- geometry warnings shown DIRECTLY in the target row they belong to (never only a
+     brief toast, never only a far-away summary block), with a restrained-but-unmistakable box
+     style. Purely informational -- see renderRowGeometryWarnings(); never mutates geometry. */
+  .geom-warn-box{border:1px solid var(--warn);border-radius:6px;padding:6px 8px;margin:6px 0;font-size:12px;color:var(--warn);background:rgba(217,164,65,.08)}
+  .geom-warn-box div{margin:2px 0}
   .status-badge{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;border-radius:4px;padding:1px 7px;margin-left:8px;vertical-align:middle;border:1px solid var(--line)}
   .status-badge.traced{color:#bdf0d4;border-color:var(--contour)}
   .status-badge.not-traceable{color:#e7cd9a;border-color:var(--warn)}
@@ -64,9 +83,13 @@
   #reviewOverlay .handle{fill:var(--review);stroke:#0e1013;stroke-width:.8;cursor:grab;vector-effect:non-scaling-stroke}
   #reviewOverlay .handle.selected{fill:#fff;stroke:var(--review);stroke-width:2;vector-effect:non-scaling-stroke}
   #reviewOverlay .segHit{stroke:transparent;stroke-width:14;fill:none;cursor:copy;vector-effect:non-scaling-stroke}
-  #magnifier{position:absolute;right:10px;bottom:10px;background:#0e1013;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;z-index:5}
-  #magCanvas{background:#000;image-rendering:pixelated;border-radius:4px}
+  /* BI-2F0A UX addition -- persistent side loupe. Fixed corner location (never follows the
+     cursor itself), circular, samples the real decoded <img> pixels only. See drawLoupe(). */
+  #magnifier{position:absolute;right:10px;bottom:10px;background:#0e1013;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;z-index:5;pointer-events:none}
+  #magCanvas{background:#000;image-rendering:pixelated;border-radius:50%}
   #magHint{font-size:10px;margin-top:4px}
+  #magCoord{font-size:10px;margin-top:2px;color:var(--ink)}
+  #magZoomSelect{pointer-events:auto;font-size:10px;padding:1px 3px;margin-top:3px}
   .review-row{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--panel)}
   .review-row .row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
   button.review-primary{background:var(--review);border-color:var(--review);color:#0e1013}
@@ -129,15 +152,23 @@
   <section id="stage">
     <div id="imageWrap">
       <div id="imgStack">
-        <img id="img" alt="synchronized keyframe (display-transformed only)">
+        <img id="img" alt="synchronized keyframe (display-transformed only)" draggable="false">
         <svg id="geomOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
         <svg id="contourOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
         <svg id="reviewOverlay" preserveAspectRatio="none" aria-hidden="true"></svg>
       </div>
       <div id="imgUnavailable">IMAGE UNAVAILABLE<br><span class="muted" id="imgUnavailableMeta"></span></div>
+      <div id="debugReadout" style="display:none;position:absolute;left:10px;top:10px;background:#000c;color:#9f9;font:11px monospace;padding:4px 8px;border-radius:4px;z-index:6;pointer-events:none"></div>
       <div id="magnifier" hidden>
-        <canvas id="magCanvas" width="160" height="160"></canvas>
+        <canvas id="magCanvas" width="180" height="180"></canvas>
         <div class="muted" id="magHint">arrows nudge 1px · shift+arrows 5px</div>
+        <div id="magCoord"></div>
+        <select id="magZoomSelect" title="Loupe magnification">
+          <option value="4">4x</option>
+          <option value="6" selected>6x</option>
+          <option value="8">8x</option>
+          <option value="10">10x</option>
+        </select>
       </div>
     </div>
     <div id="stageBar">
@@ -149,6 +180,10 @@
       <span style="flex:1"></span>
       <label class="muted">zoom <input id="zoom" type="range" min="0.25" max="3" step="0.05" value="1" style="vertical-align:middle"></label>
       <button id="btnFit">Fit</button>
+      <label class="muted" title="Developer UI only -- never exported"><input id="chkPointNumbers" type="checkbox"> point #s</label>
+      <label class="muted" title="Never affects stored coordinates"><input id="chkHideAnnotation" type="checkbox"> hide annotation</label>
+      <label class="muted">opacity <input id="rangeOpacity" type="range" min="0.1" max="1" step="0.05" value="1" style="vertical-align:middle;width:70px"></label>
+      <label class="muted" title="Developer-only diagnostic -- never exported"><input id="chkDebugReadout" type="checkbox"> click diagnostic</label>
     </div>
   </section>
 
@@ -185,6 +220,7 @@
         where the visible edge stops.
       </div>
       <div class="body" id="contours"></div>
+      <div class="body" id="contourWarnings"></div>
       <div class="body muted" style="border-top:1px solid var(--line)" id="contourProgressDetail"></div>
     </div>
 
@@ -196,6 +232,7 @@
         scratch.
       </div>
       <div class="body" id="review"></div>
+      <div class="body" id="reviewWarnings"></div>
       <div class="body muted" style="border-top:1px solid var(--line)" id="reviewProgressDetail"></div>
     </div>
   </aside>
@@ -205,16 +242,43 @@
 
 <script src="./annotation-workbench.cjs"></script>
 <script src="./beard-proposal.cjs"></script>
+<script src="./precision-annotation-core.cjs"></script>
 <script>
 (function(){
   "use strict";
   var A = window.AWB;
   var BP = window.BeardProposal;
+  var PC = window.PrecisionCore;
+  // BI-2F0 -- developer-UI-only view state (never exported, never affects stored coordinates).
+  var showPointNumbers = false;
+  var overlayHidden = false, overlayOpacity = 1;
+  // BI-2F0A.1 Part 7 -- developer-only click diagnostic. Never exported, never part of any
+  // annotation state object.
+  var showDebugReadout = false, lastClickDiagnostic = null;
+  function renderDebugReadout(){
+    var el2=document.getElementById('debugReadout'); if(!el2) return;
+    if(!showDebugReadout || !lastClickDiagnostic){ el2.style.display='none'; return; }
+    el2.style.display='block';
+    var d=lastClickDiagnostic;
+    el2.textContent='client: '+d.client.x.toFixed(1)+','+d.client.y.toFixed(1)+
+      '  display-local: '+d.displayLocal.x.toFixed(1)+','+d.displayLocal.y.toFixed(1)+
+      '  raw: '+d.raw.x.toFixed(2)+','+d.raw.y.toFixed(2)+
+      (d.roundTrip ? '  rendered-back: '+d.roundTrip.displayBack.x.toFixed(2)+','+d.roundTrip.displayBack.y.toFixed(2)+
+        '  residual: '+d.roundTrip.residualPx.toFixed(3)+'px' : '');
+  }
   var bundle=null, state=null, activeRegion=null;
   var LS_KEY='mettle.annotation-workbench.autosave.v1';
   // BI-1Y — wholly separate contour state + autosave namespace (Part 17). Never read/written by
   // any categorical (BI-1W) code path above, and never clears the categorical autosave key.
-  var contourState=null, activeContourType=null;
+  var contourState=null, activeContourType=null, contourInsertMode=false;
+  // BI-2F0A.1 Part 8 -- which contour target is currently "in focus" for VISUAL dimming purposes
+  // only (never affects geometry/export). Distinct from activeContourType (which is null once
+  // tracing stops) so two already-finished traces on the same image can still be told apart:
+  // the most recently interacted-with target stays bright, the other(s) dim.
+  var focusedContourType=null;
+  // BI-2F0A.2 -- contour VERTEX selection/drag state (mirrors selectedHandle/dragging for
+  // review). Persists after a drag ends (Part 3) until an explicit clearing action.
+  var selectedContourType=null, selectedContourIndex=null, contourDragging=null;
   var CONTOUR_LS_KEY='mettle.annotation-workbench.contour-autosave.v1';
   // BI-1Y2 — wholly separate assisted-review state + autosave namespace. Never read/written by
   // any BI-1W or BI-1Y code path, and never clears either of their autosave keys.
@@ -343,6 +407,34 @@
   // ---------- render ----------
   function curEntry(){ return bundle.entries[state.position]; }
 
+  // ---------- BI-2F0A.1: overlay geometry coordinate-drift fix ----------------------------
+  // ROOT CAUSE (proven, not guessed): #img's rendered box was NOT guaranteed to exactly equal
+  // #imgStack's box (a classic CSS percentage-of-indeterminate-ancestor situation: #img has
+  // max-width/max-height:96%, #imgStack has no explicit size of its own). The click->raw
+  // conversion always used #img's OWN real box (img.clientWidth/clientHeight); the SVG overlays
+  // were sized via CSS against #imgStack ("inset:0;width:100%;height:100%") instead. Whenever the
+  // two boxes differed, the overlay's viewBox-based render drifted systematically from the real
+  // clicked pixels -- reproducing the reported "same directional offset" bug on two independent
+  // traces. FIX: measure #img's own actual layout box (offsetLeft/Top/Width/Height -- PRE-
+  // transform values, so they compose correctly with the rotate/mirror/zoom transform already
+  // applied to their shared parent #imgStack) and force every overlay SVG to that exact box,
+  // every time it could have changed.
+  function syncOverlayGeometry(){
+    var img=el('img');
+    if(!img || !img.offsetParent) return; // image hidden/not laid out -- nothing to sync yet
+    var box={ left: img.offsetLeft, top: img.offsetTop, width: img.offsetWidth, height: img.offsetHeight };
+    if(box.width<=0 || box.height<=0) return;
+    ['geomOverlay','contourOverlay','reviewOverlay'].forEach(function(id){
+      var svg=el(id);
+      if(!svg) return;
+      svg.style.left=box.left+'px'; svg.style.top=box.top+'px';
+      svg.style.width=box.width+'px'; svg.style.height=box.height+'px';
+    });
+    lastMeasuredOverlayBox=box;
+  }
+  var lastMeasuredOverlayBox=null;
+  window.addEventListener('resize', function(){ if(bundle) syncOverlayGeometry(); });
+
   function render(){
     var e=curEntry();
     // BI-1Z1A.1 BUGFIX -- keep activeReviewTarget valid for whichever entry is now current: only
@@ -447,11 +539,43 @@
       'images completed: <b>'+p.imagesCompleted+'</b> / '+p.imageTotal+'<br>'+
       'images needing review: <b>'+p.imagesNeedingReview+'</b><br>'+
       'ambiguous labels: <b>'+p.ambiguousLabels+'</b><br>'+
-      'excluded labels: <b>'+p.excludedLabels+'</b>';
+      'excluded labels: <b>'+p.excludedLabels+'</b>'+
+      renderTargetChecklist(e);
     renderContours(e);
     renderReview(e);
+    // BI-2F0A.1 -- re-measure on every render (covers zoom-slider changes and any other
+    // re-render of an ALREADY-loaded image, where the 'load' event above does not refire).
+    syncOverlayGeometry();
   }
 
+  // BI-2F0 Part 15 -- explicit per-target completion checklist for the CURRENT image. "Complete"
+  // requires a valid explicit FINAL state, never merely "some points exist" (an in-progress
+  // contour with points but still traceabilityStatus===UNSET is shown as incomplete, exactly like
+  // a review target with edits but humanReviewStatus still PENDING).
+  function renderTargetChecklist(e){
+    var lines=[];
+    var m=state ? A.entryLabels(state, A.entryKey(e)) : {};
+    (e.regionsToAnnotate||[]).forEach(function(rg){
+      var l=m[rg]||A.defaultRegionLabel();
+      lines.push((l.annotationStatus!=='UNKNOWN'?'✓':'○')+' '+rg+' (label)');
+    });
+    if(contourState){
+      var crec=curContourRecord();
+      (e.contourTypesToAnnotate||[]).forEach(function(ct){
+        var c=crec.contours[ct]||A.defaultContourInstance();
+        lines.push((c.traceabilityStatus!==A.CONTOUR_PENDING_STATUS?'✓':'○')+' '+ct+' (contour)');
+      });
+    }
+    if(reviewState){
+      var rrec=curReviewRecord();
+      (e.assistedReviewTargets||[]).forEach(function(t){
+        var inst=rrec.targets[t]||A.defaultReviewInstance();
+        lines.push((inst.humanReviewStatus!==A.REVIEW_PENDING_STATUS?'✓':'○')+' '+t+' (review)');
+      });
+    }
+    if(!lines.length) return '';
+    return '<br><br>Targets:<br>'+lines.join('<br>');
+  }
   // ---------- BI-1Y outer-beard contour panel ----------
   function curContourRecord(){
     var e=curEntry(), key=A.entryKey(e);
@@ -480,12 +604,18 @@
       d.innerHTML='<h3>'+(A.CONTOUR_TYPE_DISPLAY[ct]||ct)+
           '<span class="status-badge '+badgeCls+'">'+(STATUS_TEXT[c.traceabilityStatus]||c.traceabilityStatus)+'</span></h3>'+
         '<div class="contour-def">'+(A.CONTOUR_TYPE_DEFINITIONS[ct]||'')+'</div>'+
+        (bundle&&PC&&PC.isBlindGtBundle(bundle) ? '<div class="row muted">Revision <b>'+(c.revisionNumber||1)+'</b> — '+(c.locked?'Locked':'Editable')+(c.basedOnRevision!=null?' (revised from Revision '+c.basedOnRevision+')':'')+'</div>' : '')+
         '<div class="row">'+
-          '<button data-act="trace" data-ct="'+ct+'" class="'+(tracing?'contour-primary':'')+'">'+(tracing?'Tracing… (click image)':'Trace')+'</button>'+
-          '<button data-act="undo" data-ct="'+ct+'" '+(c.points.length?'':'disabled')+'>Undo last point</button>'+
-          '<button data-act="clear" data-ct="'+ct+'" '+((c.points.length||!pending)?'':'disabled')+'>Clear / restart</button>'+
+          '<button data-act="trace" data-ct="'+ct+'" class="'+(tracing?'contour-primary':'')+'" '+(c.locked?'disabled':'')+'>'+(tracing?'Tracing… (click image)':'Trace')+'</button>'+
+          '<button data-act="undo" data-ct="'+ct+'" '+((c.points.length&&!c.locked)?'':'disabled')+'>Undo last point</button>'+
+          '<button data-act="redo" data-ct="'+ct+'" '+((c.redoStack&&c.redoStack.length&&!c.locked)?'':'disabled')+'>Redo</button>'+
+          '<button data-act="clear" data-ct="'+ct+'" '+(((c.points.length||!pending)&&!c.locked)?'':'disabled')+'>Clear / restart</button>'+
+          '<button data-act="insertmode" data-ct="'+ct+'" class="'+((contourInsertMode&&activeContourType===ct)?'contour-primary':'')+'" '+((c.points.length>1&&!c.locked)?'':'disabled')+'>'+((contourInsertMode&&activeContourType===ct)?'Click a segment to insert…':'Insert point')+'</button>'+
+          (bundle&&PC&&PC.isBlindGtBundle(bundle) ? '<button data-act="lock" data-ct="'+ct+'" '+(c.locked||c.points.length<2?'disabled':'')+'>'+(c.locked?'LOCKED':'Lock Blind Annotation')+'</button>' : '')+
+          (bundle&&PC&&PC.isBlindGtBundle(bundle)&&c.locked ? '<button data-act="createRevision" data-ct="'+ct+'">Create New Revision</button>' : '')+
         '</div>'+
         '<div class="row muted">points placed: <b>'+c.points.length+'</b> (need '+A.MIN_CONTOUR_POINTS+'+ to finish)</div>'+
+        renderGeometryWarningBox(c.points, PC?PC.GEOMETRY_TYPE.OPEN_POLYLINE:'OPEN_POLYLINE', rec.imageWidth, rec.imageHeight)+
         '<div class="row">'+
           '<button data-act="finish" data-ct="'+ct+'" '+(c.points.length>=A.MIN_CONTOUR_POINTS?'':'disabled')+'>Finish (mark TRACED)</button>'+
           '<button data-act="nottraceable" data-ct="'+ct+'">Not traceable</button>'+
@@ -508,10 +638,15 @@
   function onContourButton(ev){
     var ct=ev.target.getAttribute('data-ct'), act=ev.target.getAttribute('data-act');
     var e=curEntry(), key=A.entryKey(e);
+    if(ct) focusedContourType=ct; // BI-2F0A.1 Part 8 -- visual focus only, never geometry/export
     try{
       if(act==='trace'){ activeContourType = (activeContourType===ct) ? null : ct; }
+      else if(act==='insertmode'){ contourInsertMode = !(contourInsertMode && activeContourType===ct); activeContourType=ct; }
       else if(act==='undo'){ contourState=A.undoLastContourPoint(contourState,key,ct); }
-      else if(act==='clear'){ contourState=A.clearContour(contourState,key,ct); if(activeContourType===ct) activeContourType=null; }
+      else if(act==='redo'){ contourState=A.redoLastContourPoint(contourState,key,ct); }
+      else if(act==='lock'){ contourState=A.lockContour(contourState,key,ct,PC,{bundleId:bundle.bundleId||null}); if(selectedContourType===ct) selectedContourIndex=null; toast('Locked: '+ct); }
+      else if(act==='createRevision'){ contourState=A.createContourRevision(contourState,key,ct,PC); if(selectedContourType===ct) selectedContourIndex=null; toast('New editable revision created for: '+ct); }
+      else if(act==='clear'){ contourState=A.clearContour(contourState,key,ct); if(activeContourType===ct) activeContourType=null; if(selectedContourType===ct){ selectedContourType=null; selectedContourIndex=null; } }
       else if(act==='finish'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'TRACED'); activeContourType=null; }
       else if(act==='nottraceable'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'NOT_TRACEABLE'); if(activeContourType===ct) activeContourType=null; }
       else if(act==='unknown'){ contourState=A.setContourTraceabilityStatus(contourState,key,ct,'UNKNOWN'); if(activeContourType===ct) activeContourType=null; }
@@ -534,6 +669,18 @@
     var img=el('img');
     var p=A.displayClickToImagePoint(ev.offsetX, ev.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
     if(!p) return;
+    // BI-2F0A.1 Part 7 -- developer-only round-trip diagnostic for the last click. Never enters
+    // exported GT (a separate module-level variable, never written into contourState/reviewState).
+    if(PC && lastMeasuredOverlayBox){
+      var rt=PC.roundTripResidual(ev.offsetX, ev.offsetY, {left:0,top:0,width:lastMeasuredOverlayBox.width,height:lastMeasuredOverlayBox.height}, img.naturalWidth, img.naturalHeight);
+      lastClickDiagnostic={ client:{x:ev.clientX,y:ev.clientY}, displayLocal:{x:ev.offsetX,y:ev.offsetY}, raw:p, roundTrip:rt };
+      renderDebugReadout();
+    }
+    // BI-2F0A.2 Part 3 -- reaching this handler at all means the click landed on BLANK image
+    // space (a .cHit click is routed to onContourPointerDown instead and never reaches here, since
+    // it is a separate, pointer-events:auto SVG element in front of #img). A blank click is one of
+    // the explicit triggers that clears a contour vertex selection.
+    if(selectedContourType!=null){ selectedContourType=null; selectedContourIndex=null; }
     var e=curEntry(), key=A.entryKey(e);
     // BI-1Y2 "Add point" mode takes priority over BI-1Y contour tracing on the same click --
     // routed through this SAME already-proven #img click path (never an inner SVG shape's own
@@ -557,7 +704,25 @@
       return;
     }
     if(!contourState||!activeContourType) return;
-    contourState=A.addContourPoint(contourState,key,activeContourType,p.x,p.y);
+    // BI-2F0 Part 6 -- ordered mid-curve insertion for OPEN_POLYLINE contours, same nearest-
+    // segment approach already proven for the CLOSED_POLYGON review tool above.
+    if(contourInsertMode){
+      var crec=curContourRecord(), cc=crec.contours[activeContourType];
+      if(cc && cc.points.length>1){
+        var cpts=cc.points, cBestI=0, cBestD=Infinity;
+        for(var ci=0;ci<cpts.length-1;ci++){
+          var cd=distToSegment(p,cpts[ci],cpts[ci+1]);
+          if(cd<cBestD){ cBestD=cd; cBestI=ci; }
+        }
+        try{ contourState=A.insertContourPoint(contourState,key,activeContourType,cBestI,p.x,p.y,PC); }
+        catch(err){ toast(err.message); return; }
+        saveContourLocal();
+        render();
+      }
+      return;
+    }
+    try{ contourState=A.addContourPoint(contourState,key,activeContourType,p.x,p.y); }
+    catch(err){ toast(err.message); return; }
     saveContourLocal();
     render();
   });
@@ -568,6 +733,10 @@
     var cx=a.x+t*dx, cy=a.y+t*dy;
     return Math.hypot(p.x-cx, p.y-cy);
   }
+  // BI-2F0A.1 -- always re-measure the overlay geometry once the new image has actually decoded
+  // and laid out (its offsetWidth/Height are only reliable AFTER 'load'); unconditional, runs
+  // before any of the other load-time logic below so it can never be skipped by an early return.
+  el('img').addEventListener('load', function(){ syncOverlayGeometry(); });
   // Capture the REAL image pixel dimensions (never CSS/display size) the first time each
   // keyframe decodes, so every contour point on this entry stays reproducible (Part 3/17).
   el('img').addEventListener('load', function(){
@@ -581,6 +750,32 @@
     saveContourLocal();
     renderContourOverlay(e);
   });
+  // BI-2F0A.3 -- ONE shared, plain-language warning renderer used by BOTH editors (Part 7:
+  // shared engine, editor-specific semantics via the geometryType argument the caller passes).
+  // Purely READ-ONLY: only calls PC.validateGeometry and builds a display string -- never
+  // mutates `points` (proven by test: the exact same array reference/content goes in and the
+  // caller's own points are never touched).
+  var GEOM_WARNING_TEXT = {
+    SELF_INTERSECTION: 'Warning: self-intersection detected.',
+    DUPLICATE_CONSECUTIVE_POINT: 'Warning: duplicate point detected.',
+    NEAR_DUPLICATE_POINT: 'Warning: two points are nearly on top of each other.',
+    LARGE_JUMP: 'Warning: unusually large segment detected.',
+    OPEN_POLYLINE_NEARLY_CLOSED: 'Warning: open curve nearly closes on itself.'
+  };
+  var GEOM_ERROR_TEXT = {
+    TOO_FEW_POINTS: 'Not enough points yet.',
+    INVALID_IMAGE_DIMENSIONS: 'Image dimensions unavailable.',
+    POINTS_OUT_OF_BOUNDS: 'A point is outside the image bounds.'
+  };
+  function renderGeometryWarningBox(points, geometryType, w, h){
+    if(!PC || !points || !points.length) return '';
+    var v=PC.validateGeometry(points, geometryType, w, h);
+    var lines=[];
+    v.warnings.forEach(function(code){ lines.push('<div>⚠ '+(GEOM_WARNING_TEXT[code]||('Warning: '+code.replace(/_/g,' ').toLowerCase()+'.'))+'</div>'); });
+    v.errors.forEach(function(code){ lines.push('<div>✗ '+(GEOM_ERROR_TEXT[code]||('Error: '+code.replace(/_/g,' ').toLowerCase()+'.'))+'</div>'); });
+    if(!lines.length) return '';
+    return '<div class="geom-warn-box">'+lines.join('')+'</div>';
+  }
   function renderContourOverlay(e){
     var svg=el('contourOverlay');
     if(!contourState || !A.imageRenderable(e) || !(e.contourTypesToAnnotate||[]).length){
@@ -594,14 +789,57 @@
     (e.contourTypesToAnnotate||[]).forEach(function(ct){
       var c=rec.contours[ct]; if(!c || !c.points.length) return;
       var pts=c.points.map(function(p){ return p.x+','+p.y; }).join(' ');
-      var dim = (activeContourType && activeContourType!==ct) ? ' dim' : '';
+      // BI-2F0A.1 Part 8 -- visual-only focus indicator: whichever target is active (tracing) OR
+      // was most recently interacted with stays bright; the other(s) dim. Never touches
+      // points/status/export -- purely a CSS class on the rendered <polyline>.
+      var visualFocus = activeContourType || focusedContourType;
+      var dim = (visualFocus && visualFocus!==ct) ? ' dim' : '';
       parts.push('<polyline class="cline'+dim+'" points="'+pts+'"></polyline>');
       var r=Math.max(0.8, Math.min(w,h)*0.01);
-      c.points.forEach(function(p){ parts.push('<circle class="cpoint" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>'); });
+      // BI-2F0A.2 Part 2 -- a comfortably larger (~8-12 CSS px) INVISIBLE hit target around each
+      // visible point, converted into raw-image-pixel units using the last measured CSS-px<->
+      // raw-px ratio (falls back to a 1:1 assumption before the first real measurement -- never
+      // changes the stored/visible geometry either way).
+      var cssPxToRawPx = (lastMeasuredOverlayBox && lastMeasuredOverlayBox.width>0) ? (w/lastMeasuredOverlayBox.width) : 1;
+      var hitR = 10*cssPxToRawPx;
+      c.points.forEach(function(p,i){
+        var sel = (selectedContourType===ct && selectedContourIndex===i);
+        parts.push('<circle class="cpoint'+(sel?' selected':'')+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
+        parts.push('<circle class="cHit" data-ct="'+ct+'" data-i="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+hitR+'"></circle>');
+        // BI-2F0 Part 9 -- explicit START/END markers for this OPEN_POLYLINE target (never
+        // auto-connected). Drawn as small labeled text, never as stored geometry.
+        if(i===0) parts.push('<text x="'+(p.x+r*2)+'" y="'+(p.y-r*2)+'" fill="#4fd18b" font-size="'+Math.max(9,Math.min(w,h)*0.025)+'">START</text>');
+        if(i===c.points.length-1 && c.points.length>1) parts.push('<text x="'+(p.x+r*2)+'" y="'+(p.y-r*2)+'" fill="#d96b6b" font-size="'+Math.max(9,Math.min(w,h)*0.025)+'">END</text>');
+        if(showPointNumbers) parts.push('<text x="'+(p.x+r*1.4)+'" y="'+(p.y+r*3)+'" fill="#e8ecf1" font-size="'+Math.max(8,Math.min(w,h)*0.02)+'">'+(i+1)+'</text>');
+      });
+      if(c.locked) parts.push('<text x="4" y="14" fill="#d9a441" font-size="12">LOCKED (blind GT)</text>');
     });
     svg.innerHTML=parts.join('');
-    svg.style.display = parts.length ? 'block' : 'none';
+    svg.style.display = (parts.length && !overlayHidden) ? 'block' : 'none';
+    svg.style.opacity = String(overlayOpacity);
     el('img').classList.toggle('tracing', !!activeContourType || !!addPointMode);
+    // BI-2F0A.2 Part 1/5 -- wire the larger invisible hit target, not the small visible dot, so a
+    // real fingertip/mouse click reliably lands on it. pointerdown here ALWAYS wins over image
+    // pan/native-drag (stopPropagation + preventDefault, same discipline as the review handles).
+    svg.querySelectorAll('.cHit').forEach(function(c){ c.addEventListener('pointerdown', onContourPointerDown); });
+    if(selectedContourType!=null) drawLoupe(e);
+    renderContourWarnings(e);
+  }
+  /** BI-2F0 Part 11/12 -- non-destructive geometry quality warnings, computed fresh from the
+   *  CURRENT points every render. Never mutates the contour; purely informational. */
+  function renderContourWarnings(e){
+    var host=el('contourWarnings'); if(!host) return;
+    var types=e.contourTypesToAnnotate||[];
+    if(!types.length || !PC){ host.innerHTML=''; return; }
+    var rec=curContourRecord();
+    var lines=[];
+    types.forEach(function(ct){
+      var c=rec.contours[ct]; if(!c || !c.points.length) return;
+      var v=PC.validateGeometry(c.points, PC.GEOMETRY_TYPE.OPEN_POLYLINE, rec.imageWidth, rec.imageHeight);
+      v.warnings.forEach(function(w){ lines.push('<div class="warn">⚠ '+ct+': '+w.replace(/_/g,' ')+'</div>'); });
+      v.errors.forEach(function(w){ lines.push('<div style="color:var(--bad)">✗ '+ct+': '+w.replace(/_/g,' ')+'</div>'); });
+    });
+    host.innerHTML=lines.join('');
   }
 
   // ---------- BI-1Y2 assisted (machine-proposed, human-verified) beard-boundary review ----
@@ -609,6 +847,10 @@
   function hasPriorHint(e){
     return !!(e.priorHintPoints && Object.keys(e.priorHintPoints).some(function(k){ return Array.isArray(e.priorHintPoints[k]) && e.priorHintPoints[k].length>1; }));
   }
+  // BI-2F0 Part 17/18 -- the BUNDLE/TASK definition controls blind mode, never a casual per-click
+  // toggle. isBlindGtBundle is a pure precision-annotation-core function; wrapped here only to
+  // guard against PC/bundle being unavailable.
+  function isBlindBundle(){ return !!(bundle && PC && PC.isBlindGtBundle(bundle)); }
   function curReviewRecord(){
     var e=curEntry(), key=A.entryKey(e);
     return (reviewState.byEntry && reviewState.byEntry[key]) || {targets:{}};
@@ -707,14 +949,22 @@
       d.className='review-row';
       d.innerHTML='<h3 style="margin:0 0 6px">'+t.replace(/_/g,' ')+
           '<span class="status-badge '+badgeCls+'">'+(STATUS_TEXT[inst.humanReviewStatus]||inst.humanReviewStatus)+'</span></h3>'+
+        (isBlindBundle() ? '<div class="row muted">Revision <b>'+(inst.revisionNumber||1)+'</b> — '+(inst.locked?'Locked':'Editable')+(inst.basedOnRevision!=null?' (revised from Revision '+inst.basedOnRevision+')':'')+'</div>' : '')+
         (hasProposal ? '<div class="row muted">edits: <b>'+inst.editCount+'</b> (moved '+inst.pointsMoved+', added '+inst.pointsAdded+', deleted '+inst.pointsDeleted+')</div>' : '')+
+        renderGeometryWarningBox(inst.humanFinalPoints, PC?PC.GEOMETRY_TYPE.CLOSED_POLYGON:'CLOSED_POLYGON', rec.imageWidth, rec.imageHeight)+
         '<div class="row">'+
-          '<button data-act="generate" data-t="'+t+'">'+(hasProposal?'Regenerate proposal':'Generate proposal')+'</button>'+
-          (hasProposal ? '<button data-act="reset" data-t="'+t+'">Reset to proposal</button>' : '')+
-          (hasProposal ? '<button data-act="undo" data-t="'+t+'">Undo</button>' : '')+
-          (hasPriorHint(e) ? '<button data-act="togglePrior" data-t="'+t+'" class="'+(showPriorTrace?'review-primary':'')+'">'+(showPriorTrace?'Hide':'Show')+' previous human trace</button>' : '')+
-          (hasProposal ? '<button data-act="toggleProposalVisible" data-t="'+t+'" class="'+(hideProposal?'review-primary':'')+'">'+(hideProposal?'Show machine proposal':'Hide machine proposal')+'</button>' : '')+
-          (Array.isArray(e.jawDiagnosticLandmarks)&&e.jawDiagnosticLandmarks.length ? '<button data-act="toggleJawDiagnostic" data-t="'+t+'" class="'+(showJawDiagnostic?'review-primary':'')+'">'+(showJawDiagnostic?'Hide':'Show')+' jaw landmarks (diagnostic)</button>' : '')+
+          // BI-2F0 Part 17/19 -- BLIND GT: the machine proposal IS a "predicted beard boundary" /
+          // "automatic edge suggestion" -- never generated/regenerated/shown for a blind bundle.
+          (isBlindBundle() ? '' : '<button data-act="generate" data-t="'+t+'">'+(hasProposal?'Regenerate proposal':'Generate proposal')+'</button>')+
+          (hasProposal && !isBlindBundle() ? '<button data-act="reset" data-t="'+t+'" '+(inst.locked?'disabled':'')+'>Reset to proposal</button>' : '')+
+          '<button data-act="resetTarget" data-t="'+t+'" '+(inst.locked?'disabled':'')+'>Reset Current Target</button>'+
+          (hasProposal ? '<button data-act="undo" data-t="'+t+'" '+(inst.locked?'disabled':'')+'>Undo</button>' : '')+
+          (hasProposal ? '<button data-act="redo" data-t="'+t+'" '+((inst.redoStack&&inst.redoStack.length&&!inst.locked)?'':'disabled')+'>Redo</button>' : '')+
+          (hasPriorHint(e) && !isBlindBundle() ? '<button data-act="togglePrior" data-t="'+t+'" class="'+(showPriorTrace?'review-primary':'')+'">'+(showPriorTrace?'Hide':'Show')+' previous human trace</button>' : '')+
+          (hasProposal && !isBlindBundle() ? '<button data-act="toggleProposalVisible" data-t="'+t+'" class="'+(hideProposal?'review-primary':'')+'">'+(hideProposal?'Show machine proposal':'Hide machine proposal')+'</button>' : '')+
+          (Array.isArray(e.jawDiagnosticLandmarks)&&e.jawDiagnosticLandmarks.length && !isBlindBundle() ? '<button data-act="toggleJawDiagnostic" data-t="'+t+'" class="'+(showJawDiagnostic?'review-primary':'')+'">'+(showJawDiagnostic?'Hide':'Show')+' jaw landmarks (diagnostic)</button>' : '')+
+          (isBlindBundle() ? '<button data-act="lock" data-t="'+t+'" '+(inst.locked||inst.humanFinalPoints.length<3?'disabled':'')+'>'+(inst.locked?'LOCKED':'Lock Blind Annotation')+'</button>' : '')+
+          (isBlindBundle() && inst.locked ? '<button data-act="createRevision" data-t="'+t+'">Create New Revision</button>' : '')+
         '</div>'+
         (hideProposal ? '<div class="row muted">Machine proposal hidden — inspect the human-final outline against the image alone before approving.</div>' : '')+
         (hasPriorHint(e) ? '<div class="row muted">The dotted gray reference is the OLD BI-1Y manual trace — reference only, never re-approved as-is.</div>' : '')+
@@ -742,6 +992,20 @@
       'rejected: <b>'+p.rejected+'</b> &nbsp; not traceable: <b>'+p.notTraceable+'</b>';
     el('btnExportReview').disabled = (p.targetsRequested===0) || (p.unreviewed>0);
     renderReviewOverlay(e);
+    renderReviewWarnings(e, rec, targets);
+  }
+  function renderReviewWarnings(e, rec, targets){
+    var host=el('reviewWarnings'); if(!host) return;
+    if(!targets.length || !PC){ host.innerHTML=''; return; }
+    var w=el('img').naturalWidth, h=el('img').naturalHeight;
+    var lines=[];
+    targets.forEach(function(t){
+      var inst=rec.targets[t]; if(!inst || !inst.humanFinalPoints || !inst.humanFinalPoints.length) return;
+      var v=PC.validateGeometry(inst.humanFinalPoints, PC.GEOMETRY_TYPE.CLOSED_POLYGON, w, h);
+      v.warnings.forEach(function(x){ lines.push('<div class="warn">⚠ '+t+': '+x.replace(/_/g,' ')+'</div>'); });
+      v.errors.forEach(function(x){ lines.push('<div style="color:var(--bad)">✗ '+t+': '+x.replace(/_/g,' ')+'</div>'); });
+    });
+    host.innerHTML=lines.join('');
   }
   function onReviewButton(ev){
     var t=ev.target.getAttribute('data-t'), act=ev.target.getAttribute('data-act');
@@ -751,8 +1015,12 @@
     if(t) activeReviewTarget=t;
     var e=curEntry(), key=A.entryKey(e);
     try{
-      if(act==='generate'){ generateProposal(e, t); return; }
+      if(act==='generate'){ if(isBlindBundle()){ toast('Machine proposals are disabled for BLIND GT bundles.'); return; } generateProposal(e, t); return; }
       else if(act==='undo'){ reviewState=A.undoLastEdit(reviewState,key,t); }
+      else if(act==='redo'){ reviewState=A.redoLastEdit(reviewState,key,t); }
+      else if(act==='resetTarget'){ reviewState=A.resetCurrentReviewTarget(reviewState,key,t); selectedHandle=null; }
+      else if(act==='lock'){ reviewState=A.lockReviewTarget(reviewState,key,t,PC,{bundleId:bundle.bundleId||null}); selectedHandle=null; toast('Locked: '+t); }
+      else if(act==='createRevision'){ reviewState=A.createReviewRevision(reviewState,key,t,PC); selectedHandle=null; toast('New editable revision created for: '+t); }
       else if(act==='reset'){ reviewState=A.resetToProposal(reviewState,key,t); selectedHandle=null; }
       else if(act==='addmode'){ addPointMode=!addPointMode; render(); return; }
       else if(act==='togglePrior'){ showPriorTrace=!showPriorTrace; render(); return; }
@@ -829,11 +1097,14 @@
         pts.forEach(function(p,i){
           var cls='handle'+(selectedHandle===i?' selected':'');
           parts.push('<circle class="'+cls+'" data-t="'+t+'" data-i="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'"></circle>');
+          if(showPointNumbers) parts.push('<text x="'+(p.x+r*1.6)+'" y="'+(p.y+r*3)+'" fill="#fff" font-size="'+Math.max(8,Math.min(w,h)*0.02)+'">'+(i+1)+'</text>');
         });
+        if(inst.locked) parts.push('<text x="4" y="14" fill="#d9a441" font-size="12">LOCKED (blind GT)</text>');
       }
     });
     svg.innerHTML=parts.join('');
-    svg.style.display='block';
+    svg.style.display = overlayHidden ? 'none' : 'block';
+    svg.style.opacity = String(overlayOpacity);
     svg.querySelectorAll('.handle').forEach(function(c){
       c.style.pointerEvents='auto';
       c.addEventListener('pointerdown', onHandlePointerDown);
@@ -842,7 +1113,9 @@
     // segHit lines are decorative only (pointer-events:none) -- "Add point" is handled by the
     // #img click handler below via nearest-edge insertion, never by an inner SVG shape's own
     // offsetX/offsetY (see that handler's comment for why).
-    if(selectedHandle!=null) drawMagnifier(e); else hideMagnifier();
+    // BI-2F0A UX addition: drawLoupe itself now handles the selected-vertex-vs-hover precedence
+    // and hides only when there is truly nothing to show (no selection AND no hover point).
+    drawLoupe(e);
   }
   // Drag uses Pointer Capture on the SVG overlay rather than document mousemove + a manual
   // getBoundingClientRect offset: that manual-offset approach silently breaks under rotation
@@ -856,10 +1129,17 @@
   function onHandlePointerDown(ev){
     ev.preventDefault(); ev.stopPropagation();
     var t=ev.target.getAttribute('data-t'), i=parseInt(ev.target.getAttribute('data-i'),10);
+    var e00=curEntry(), key00=A.entryKey(e00);
+    var inst00=reviewState.byEntry[key00] && reviewState.byEntry[key00].targets[t];
+    if(inst00 && inst00.locked){ toast('This target is LOCKED (blind GT) -- create a new revision instead.'); return; }
     selectedHandle=i;
     dragging={target:t, index:i};
     var svg=el('reviewOverlay');
     try{ svg.setPointerCapture(ev.pointerId); }catch(_e){}
+    // BI-2F0 Part 7 fix: push exactly ONE undo entry at drag-START (the position before any
+    // movement) -- moveHandlePointNoHistory below never touches history/redo, so a completed drag
+    // gesture always equals exactly one undo entry, never hundreds.
+    try{ reviewState=A.beginDragTransaction(reviewState,key00,t); }catch(_e){}
     // BI-1Y3 (Part 10) — gesture-level telemetry, tracked here in the UI (not per-pointermove in
     // the data layer): remember the START position and accumulate the path walked, then record
     // ONE drag-gesture entry on release via A.recordDragGesture. moveHandlePoint's own
@@ -875,7 +1155,7 @@
       var p=A.displayClickToImagePoint(mv.offsetX, mv.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
       if(!p) return;
       var e=curEntry(), key=A.entryKey(e);
-      try{ reviewState=A.moveHandlePoint(reviewState,key,dragging.target,dragging.index,p.x,p.y); }catch(_e){ return; }
+      try{ reviewState=A.moveHandlePointNoHistory(reviewState,key,dragging.target,dragging.index,p.x,p.y); }catch(_e){ return; }
       if(lastPoint){ pathAccum += Math.hypot(p.x-lastPoint.x, p.y-lastPoint.y); }
       lastPoint = p;
       renderReviewOverlay(e);
@@ -896,23 +1176,111 @@
     svg.addEventListener('pointermove', onMove);
     svg.addEventListener('pointerup', onUp);
   }
-  // ---------- precision correction: magnified crop + keyboard nudge ----------
+  // ---------- BI-2F0A.2 -- contour (OPEN_POLYLINE) vertex selection/drag ----------------------
+  // Mirrors onHandlePointerDown exactly (same preventDefault/stopPropagation/pointer-capture/
+  // one-transaction-per-drag discipline), applied to the NEW .cHit hit targets instead of the
+  // review editor's .handle circles. This is what makes a contour vertex click PART 5's required
+  // priority: VERTEX HANDLE > drawing/tracing > image pan -- pointerdown here always wins.
+  function onContourPointerDown(ev){
+    ev.preventDefault(); ev.stopPropagation();
+    var ct=ev.target.getAttribute('data-ct'), i=parseInt(ev.target.getAttribute('data-i'),10);
+    var e00=curEntry(), key00=A.entryKey(e00);
+    var rec00=curContourRecord();
+    var c00=rec00.contours[ct];
+    if(c00 && c00.locked){ toast('This target is LOCKED (blind GT) -- create a new revision instead.'); return; }
+    selectedContourType=ct; selectedContourIndex=i;
+    focusedContourType=ct; // keep the visual-focus dimming in sync with the real selection too
+    contourDragging={contourType:ct, index:i};
+    var svg=el('contourOverlay');
+    try{ svg.setPointerCapture(ev.pointerId); }catch(_e){}
+    // Part 4/BI-2F0 Part 7 -- exactly ONE undo entry for the whole drag, pushed at drag-START.
+    try{ contourState=A.beginContourDragTransaction(contourState,key00,ct); }catch(_e){}
+    render();
+    function onMove(mv){
+      if(!contourDragging) return;
+      var img=el('img');
+      var p=A.displayClickToImagePoint(mv.offsetX, mv.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
+      if(!p) return;
+      var e=curEntry(), key=A.entryKey(e);
+      try{ contourState=A.moveContourPointNoHistory(contourState,key,contourDragging.contourType,contourDragging.index,p.x,p.y); }catch(_e){ return; }
+      renderContourOverlay(e);
+      drawLoupe(e);
+    }
+    function onUp(mv){
+      contourDragging=null;
+      svg.removeEventListener('pointermove', onMove);
+      svg.removeEventListener('pointerup', onUp);
+      try{ svg.releasePointerCapture(mv.pointerId); }catch(_e){}
+      saveContourLocal();
+      render();
+    }
+    svg.addEventListener('pointermove', onMove);
+    svg.addEventListener('pointerup', onUp);
+  }
+  // ---------- BI-2F0A UX addition -- persistent side loupe (precision correction) -------------
+  // Generalizes the old BI-1Y2-only "selected handle" magnifier into an always-available loupe:
+  // follows the SELECTED VERTEX when one exists (review mode, unchanged precedence), otherwise
+  // follows the mouse hover position over #img. Samples ONLY the real decoded <img> bitmap via
+  // canvas drawImage with imageSmoothingEnabled=false (no interpolation/sharpening/enhancement
+  // anywhere in this function) -- reuses the exact same canvas/element (#magnifier/#magCanvas)
+  // and the same pure sample-rect math (precision-annotation-core's computeLoupeSampleRect)
+  // rather than a second, duplicate image-sampling implementation. Never gated by BLIND_GT (Part
+  // 12 of the request): it shows only the same raw pixels the human already sees, never a
+  // prediction/proposal/Hairness/occupancy result, so it stays available in every mode.
+  var loupeZoom = 6, hoverImagePoint = null;
   function hideMagnifier(){ el('magnifier').hidden=true; }
-  function drawMagnifier(e){
-    if(selectedHandle==null || !A.imageRenderable(e)) { hideMagnifier(); return; }
-    var rec=curReviewRecord(); var inst=rec.targets[activeReviewTarget];
-    if(!inst || !inst.humanFinalPoints[selectedHandle]) { hideMagnifier(); return; }
-    var p=inst.humanFinalPoints[selectedHandle];
+  function drawLoupe(e){
+    if(!A.imageRenderable(e)) { hideMagnifier(); return; }
+    var p=null;
+    // Precedence (Parts 9/10): a selected vertex always wins over hover position -- checked for
+    // BOTH editors (review's selectedHandle, contour's selectedContourType/Index).
+    if(selectedHandle!=null && reviewState){
+      var rec=curReviewRecord(); var inst=rec.targets[activeReviewTarget];
+      if(inst && inst.humanFinalPoints[selectedHandle]) p=inst.humanFinalPoints[selectedHandle];
+    }
+    if(!p && selectedContourType!=null && contourState){
+      var crec=curContourRecord(); var cinst=crec.contours[selectedContourType];
+      if(cinst && cinst.points[selectedContourIndex]) p=cinst.points[selectedContourIndex];
+    }
+    if(!p) p=hoverImagePoint;
+    if(!p){ hideMagnifier(); return; }
     var img=el('img'); var mag=el('magCanvas'); var mctx=mag.getContext('2d');
-    var zoom=6, half=mag.width/(2*zoom);
+    var rectSrc=PC ? PC.computeLoupeSampleRect(p.x, p.y, loupeZoom, mag.width) : null;
+    if(!rectSrc) { hideMagnifier(); return; }
     mctx.imageSmoothingEnabled=false;
     mctx.clearRect(0,0,mag.width,mag.height);
-    mctx.drawImage(img, p.x-half, p.y-half, half*2, half*2, 0, 0, mag.width, mag.height);
+    mctx.drawImage(img, rectSrc.sx, rectSrc.sy, rectSrc.sw, rectSrc.sh, 0, 0, mag.width, mag.height);
     mctx.strokeStyle='#b58bf0'; mctx.lineWidth=1;
     mctx.beginPath(); mctx.moveTo(mag.width/2,0); mctx.lineTo(mag.width/2,mag.height);
     mctx.moveTo(0,mag.height/2); mctx.lineTo(mag.width,mag.height/2); mctx.stroke();
+    var coordEl=el('magCoord'); if(coordEl) coordEl.textContent='x: '+p.x.toFixed(1)+'  y: '+p.y.toFixed(1);
     el('magnifier').hidden=false;
   }
+  // Backward-compatible alias -- every existing call site (drag/select) keeps working unchanged.
+  function drawMagnifier(e){ drawLoupe(e); }
+  el('magZoomSelect').addEventListener('change', function(ev){
+    // Part 4/15: the zoom control only changes what the loupe SAMPLES/DISPLAYS -- it never
+    // touches contourState/reviewState/any stored coordinate.
+    var z=parseInt(ev.target.value,10);
+    loupeZoom = (PC && PC.LOUPE_ZOOM_LEVELS.indexOf(z)!==-1) ? z : 6;
+    if(bundle) drawLoupe(curEntry());
+  });
+  el('magZoomSelect').addEventListener('click', function(ev){ ev.stopPropagation(); });
+  // Part 10: hover-follow when nothing is selected. Never adds/moves/snaps a point -- purely
+  // updates where the loupe looks. Cleared on mouseleave so the loupe hides when the cursor
+  // truly leaves the image (unless a vertex is still selected, which keeps it showing that).
+  el('img').addEventListener('mousemove', function(ev){
+    if(!bundle) return;
+    var img=el('img');
+    var p=A.displayClickToImagePoint(ev.offsetX, ev.offsetY, img.clientWidth, img.clientHeight, img.naturalWidth, img.naturalHeight);
+    if(!p) return;
+    hoverImagePoint=p;
+    drawLoupe(curEntry());
+  });
+  el('img').addEventListener('mouseleave', function(){
+    hoverImagePoint=null;
+    if(bundle) drawLoupe(curEntry());
+  });
   document.addEventListener('keydown', function(ev){
     if(selectedHandle==null || !bundle || !reviewState) return;
     var tag=(ev.target&&ev.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
@@ -929,9 +1297,37 @@
     else return;
     ev.preventDefault();
     var e=curEntry(), key=A.entryKey(e);
-    try{ reviewState=A.nudgeHandlePoint(reviewState,key,activeReviewTarget,selectedHandle,dx,dy); }catch(err){ return; }
+    try{ reviewState=A.nudgeHandlePoint(reviewState,key,activeReviewTarget,selectedHandle,dx,dy); }catch(err){ toast(err.message); return; }
     saveReviewLocal();
     render();
+  });
+  // BI-2F0A.2 Part 6/7 -- keyboard nudge/delete for a selected CONTOUR vertex. Mirrors the review
+  // handler above exactly (same raw-image-pixel semantics, same text/form-control exclusion,
+  // same "editor owns the arrows only while a vertex is selected" rule) so page/browser scrolling
+  // never wins while a contour point is selected.
+  document.addEventListener('keydown', function(ev){
+    if(selectedContourType==null || selectedContourIndex==null || !bundle || !contourState) return;
+    var tag=(ev.target&&ev.target.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(ev.target&&ev.target.isContentEditable)) return;
+    var delta = ev.shiftKey ? 5 : 1;
+    var dx=0, dy=0;
+    if(ev.key==='ArrowLeft') dx=-delta; else if(ev.key==='ArrowRight') dx=delta;
+    else if(ev.key==='ArrowUp') dy=-delta; else if(ev.key==='ArrowDown') dy=delta;
+    else if(ev.key==='Delete' || ev.key==='Backspace'){
+      var e0=curEntry(), key0=A.entryKey(e0);
+      try{ contourState=A.deleteContourPointAt(contourState,key0,selectedContourType,selectedContourIndex); selectedContourIndex=null; saveContourLocal(); render(); }
+      catch(err){ toast(err.message); }
+      ev.preventDefault();
+      return;
+    }
+    else return;
+    ev.preventDefault(); // Part 6: browser/page scrolling must NOT occur while the editor owns arrows
+    var e=curEntry(), key=A.entryKey(e);
+    try{ contourState=A.nudgeContourPoint(contourState,key,selectedContourType,selectedContourIndex,dx,dy); }
+    catch(err){ toast(err.message); return; }
+    saveContourLocal();
+    render();
+    drawLoupe(e); // Part 9: loupe updates immediately after a keyboard nudge
   });
 
   // ---------- geometry guide (optional, default OFF) ----------
@@ -961,9 +1357,13 @@
     var geomOk = A.imageRenderable(e) && A.overlayAvailable(e);
     var boundsOk = geomOk ? A.overlayPointsInImageBounds(e) : null; // null = unknown, don't block on it
     var available = geomOk && boundsOk !== false;
-    var manualOn = !!(state && state.geometryGuide) && available;
-    btn.disabled = !available;
-    btn.textContent = 'Geometry Guide: ' + (!available ? 'N/A' : (manualOn ? 'ON' : 'OFF'));
+    // BI-2F0 Part 18 -- for a BLIND_GT bundle, the Geometry Guide is forced OFF and its toggle is
+    // disabled entirely: the bundle/task definition controls this, never a casual annotator click.
+    var blind = isBlindBundle();
+    var manualOn = !blind && !!(state && state.geometryGuide) && available;
+    btn.disabled = !available || blind;
+    btn.textContent = 'Geometry Guide: ' + (blind ? 'OFF (blind GT)' : (!available ? 'N/A' : (manualOn ? 'ON' : 'OFF')));
+    if(blind){ svg.style.display='none'; svg.innerHTML=''; note.textContent='BLIND GT bundle -- geometry guide is disabled for this task.'; return; }
     var ref = activeRegion ? A.regionVisualReference(activeRegion) : null;
     var lab = activeRegion ? A.regionLabelability(activeRegion) : null;
     var activeGroupId = (ref && ref.tier !== 'UNSUPPORTED') ? ref.overlayGroupId : null;
@@ -1016,6 +1416,7 @@
   }
   el('btnGeom').addEventListener('click', function(){
     if(!bundle||!state) return;
+    if(isBlindBundle()){ toast('Geometry Guide is disabled for BLIND GT bundles.'); return; }
     state=A.setGeometryGuide(state, !state.geometryGuide);
     saveLocal(); render();
   });
@@ -1051,10 +1452,16 @@
     el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
   }
 
-  el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; activeContourType=null; selectedHandle=null; addPointMode=false; saveLocal(); render(); });
-  el('btnNext').addEventListener('click', function(){ state=A.navigate(state, 1,bundle.entries.length); activeRegion=null; activeContourType=null; selectedHandle=null; addPointMode=false; saveLocal(); render(); });
+  el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; activeContourType=null; contourInsertMode=false; focusedContourType=null; selectedHandle=null; selectedContourType=null; selectedContourIndex=null; addPointMode=false; hoverImagePoint=null; saveLocal(); render(); });
+  el('btnNext').addEventListener('click', function(){ state=A.navigate(state, 1,bundle.entries.length); activeRegion=null; activeContourType=null; contourInsertMode=false; focusedContourType=null; selectedHandle=null; selectedContourType=null; selectedContourIndex=null; addPointMode=false; hoverImagePoint=null; saveLocal(); render(); });
   el('zoom').addEventListener('input', function(){ if(bundle) render(); });
   el('btnFit').addEventListener('click', function(){ el('zoom').value=1; if(bundle) render(); });
+  // BI-2F0 Part 8/14 -- developer-UI-only toggles. None of these ever touch stored coordinates;
+  // they only affect how the CURRENT view renders.
+  el('chkPointNumbers').addEventListener('change', function(ev){ showPointNumbers=ev.target.checked; if(bundle) render(); });
+  el('chkHideAnnotation').addEventListener('change', function(ev){ overlayHidden=ev.target.checked; if(bundle) render(); });
+  el('rangeOpacity').addEventListener('input', function(ev){ overlayOpacity=parseFloat(ev.target.value)||1; if(bundle) render(); });
+  el('chkDebugReadout').addEventListener('change', function(ev){ showDebugReadout=ev.target.checked; renderDebugReadout(); });
 
   // keyboard: 1..5 set the ACTIVE region's HairState. Never when typing in a field. Never navigates.
   document.addEventListener('keydown', function(ev){
@@ -1085,8 +1492,36 @@
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
   });
 
+  // ---------- BI-2F0 Part 25: pre-export structural validation (shared by both editors) ----------
+  // Hard errors block export outright; warnings are surfaced but do not block (the human GT is
+  // never silently repaired or discarded to "fix" a warning).
+  function preExportGeometryCheck(byEntryContours, byEntryTargets){
+    if(!PC) return {ok:true, errorCount:0, warningCount:0};
+    var errorCount=0, warningCount=0;
+    Object.keys(byEntryContours||{}).forEach(function(k){
+      var rec=byEntryContours[k];
+      Object.keys(rec.contours||{}).forEach(function(ct){
+        var c=rec.contours[ct]; if(!c || !c.points.length) return;
+        var v=PC.validateGeometry(c.points, PC.GEOMETRY_TYPE.OPEN_POLYLINE, rec.imageWidth, rec.imageHeight);
+        errorCount+=v.errors.length; warningCount+=v.warnings.length;
+      });
+    });
+    Object.keys(byEntryTargets||{}).forEach(function(k){
+      var rec=byEntryTargets[k];
+      Object.keys(rec.targets||{}).forEach(function(t){
+        var inst=rec.targets[t]; if(!inst || !inst.humanFinalPoints || !inst.humanFinalPoints.length) return;
+        var v=PC.validateGeometry(inst.humanFinalPoints, PC.GEOMETRY_TYPE.CLOSED_POLYGON, rec.imageWidth, rec.imageHeight);
+        errorCount+=v.errors.length; warningCount+=v.warnings.length;
+      });
+    });
+    return {ok:errorCount===0, errorCount:errorCount, warningCount:warningCount};
+  }
+
   // ---------- BI-1Y contour export ----------
   el('btnExportContour').addEventListener('click', function(){
+    var g=preExportGeometryCheck(contourState.byEntry, null);
+    if(!g.ok){ toast('Export blocked: '+g.errorCount+' structural geometry error(s) found — see warnings panel.'); return; }
+    if(g.warningCount>0 && !confirm('This export has '+g.warningCount+' geometry warning(s) (see the warnings panel). Export anyway?')) return;
     var exp=A.buildContourExport(bundle,contourState,{exportedAt:new Date().toISOString()});
     var v=A.validateContourExport(exp,bundle);
     if(!v.ok){ toast('Export blocked: '+v.errors[0]); return; }
@@ -1102,6 +1537,9 @@
 
   // ---------- BI-1Y2 assisted-review export ----------
   el('btnExportReview').addEventListener('click', function(){
+    var g=preExportGeometryCheck(null, reviewState.byEntry);
+    if(!g.ok){ toast('Export blocked: '+g.errorCount+' structural geometry error(s) found — see warnings panel.'); return; }
+    if(g.warningCount>0 && !confirm('This export has '+g.warningCount+' geometry warning(s) (see the warnings panel). Export anyway?')) return;
     var exp=A.buildAssistedReviewExport(bundle,reviewState,{exportedAt:new Date().toISOString()});
     var v=A.validateAssistedReviewExport(exp,bundle);
     if(!v.ok){ toast('Export blocked: '+v.errors[0]); return; }

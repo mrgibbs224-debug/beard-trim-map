@@ -90,7 +90,9 @@ test('2: the incorrect BI-1Y LEFT_UNDER_JAW/RIGHT_UNDER_JAW naming no longer exi
 // ---- Issue 2 / Part 15 items 3-8 — UNSET vs UNKNOWN ----------------------------------------
 test('3: initial contour state is CONTOUR_PENDING_STATUS (UNSET), not a real answer', () => {
   assert.equal(PENDING, 'UNSET');
-  assert.deepEqual(AWB.defaultContourInstance(), { traceabilityStatus: 'UNSET', points: [], notes: '' });
+  // BI-2F0 added redoStack/locked/lockedRecord; BI-2F0A.4 added revisionNumber/basedOnFingerprint/
+  // basedOnRevision/priorRevisions (additive; a plain UNSET instance has none in use yet).
+  assert.deepEqual(AWB.defaultContourInstance(), { traceabilityStatus: 'UNSET', points: [], notes: '', history: [], redoStack: [], locked: false, lockedRecord: null, revisionNumber: 1, basedOnFingerprint: null, basedOnRevision: null, priorRevisions: [] });
 });
 test('4: an untouched contour instance is never UNKNOWN', () => {
   const b = contourBundle();
@@ -382,7 +384,9 @@ test('clearContour resets only the targeted contour instance, back to UNSET (not
   st = AWB.addContourPoint(st, key1, 'OUTER_BEARD_UNDERSIDE', 3, 3);
   st = AWB.setContourTraceabilityStatus(st, key0, 'OUTER_BEARD_UNDER_JAW_LEFT', 'NOT_TRACEABLE');
   st = AWB.clearContour(st, key0, 'OUTER_BEARD_UNDERSIDE');
-  assert.deepEqual(st.byEntry[key0].contours.OUTER_BEARD_UNDERSIDE, { traceabilityStatus: PENDING, points: [], notes: '' });
+  // BI-2F0 added redoStack/locked/lockedRecord; BI-2F0A.4 added revisionNumber/basedOnFingerprint/
+  // basedOnRevision/priorRevisions (all additive; clearContour resets to the same plain default).
+  assert.deepEqual(st.byEntry[key0].contours.OUTER_BEARD_UNDERSIDE, { traceabilityStatus: PENDING, points: [], notes: '', history: [], redoStack: [], locked: false, lockedRecord: null, revisionNumber: 1, basedOnFingerprint: null, basedOnRevision: null, priorRevisions: [] });
   assert.deepEqual(st.byEntry[key0].contours.OUTER_BEARD_UNDER_JAW_LEFT.traceabilityStatus, 'NOT_TRACEABLE');
   assert.deepEqual(st.byEntry[key1].contours.OUTER_BEARD_UNDERSIDE.points, [{ x: 3, y: 3 }]);
 });

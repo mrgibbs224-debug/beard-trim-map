@@ -774,7 +774,30 @@
   // BI-1Y CORRECTION (Issue 2): an untouched instance starts CONTOUR_PENDING_STATUS ('UNSET'),
   // never 'UNKNOWN' -- UNKNOWN is a real human answer and must only appear after the annotator
   // explicitly chooses it (setContourTraceabilityStatus below).
-  function defaultContourInstance() { return { traceabilityStatus: CONTOUR_PENDING_STATUS, points: [], notes: '' }; }
+  // BI-2F0A.4 additions (backward compatible -- an older restored instance simply lacks these;
+  // every reader below treats a missing revisionNumber/basedOnFingerprint/basedOnRevision/
+  // priorRevisions as 1 / null / null / [], never as an error): revisionNumber is THIS
+  // instance's own revision number (1 for an original, never-revised annotation);
+  // basedOnFingerprint/basedOnRevision identify the locked source this instance was created
+  // FROM via createContourRevision (null for an original); priorRevisions is the append-only,
+  // never-mutated archive of every earlier locked record for this contour, oldest first.
+  function defaultContourInstance() { return { traceabilityStatus: CONTOUR_PENDING_STATUS, points: [], notes: '', history: [], redoStack: [], locked: false, lockedRecord: null, revisionNumber: 1, basedOnFingerprint: null, basedOnRevision: null, priorRevisions: [] }; }
+  function assertContourNotLocked(rec, contourType) {
+    var c = rec && rec.contours && rec.contours[contourType];
+    if (c && c.locked) throw new Error('this contour is LOCKED (blind GT) -- create a new revision rather than editing the locked original');
+  }
+  // BI-2F0A.2 -- unified snapshot-based undo/redo for contour instances. Every mutating
+  // operation (append, insert, move, delete-at-index) pushes ONE full-points-array snapshot
+  // here first; undo/redo always restore a whole snapshot, never a single point, so a move/
+  // delete/insert is exactly as undoable as an append always was. Backward compatible with the
+  // pre-existing "Undo last point" button: for a history that only ever appended points, undoing
+  // a snapshot produces the IDENTICAL observable result as popping the last point.
+  function pushContourSnapshot(c) {
+    if (!Array.isArray(c.history)) c.history = [];
+    c.history.push(JSON.parse(JSON.stringify(c.points)));
+    if (c.history.length > 50) c.history.shift();
+    c.redoStack = [];
+  }
   function initContourState(bundle) {
     var byEntry = {};
     (bundle.entries || []).forEach(function (e) {
@@ -799,16 +822,104 @@
     if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('addContourPoint: point must have finite x/y');
     var next = JSON.parse(JSON.stringify(state));
     var rec = next.byEntry[obsId] || (next.byEntry[obsId] = { imageWidth: null, imageHeight: null, contours: {} });
+    assertContourNotLocked(rec, contourType);
     var c = rec.contours[contourType] || (rec.contours[contourType] = defaultContourInstance());
+    pushContourSnapshot(c);
     c.points.push({ x: x, y: y });
     return next;
   }
-  /** Removes exactly the last point, if any (Part 20 test 8). Safe no-op on an empty contour. */
+  // ---- BI-2F0 Part 6: insert a point BETWEEN two existing contour vertices (never appended to
+  // the end when inserted mid-curve). Reuses precision-annotation-core's ordering primitive so
+  // both editors (contour + review) share the exact same splice semantics.
+  function insertContourPoint(state, obsId, contourType, afterIndex, x, y, precisionCore) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId] || (next.byEntry[obsId] = { imageWidth: null, imageHeight: null, contours: {} });
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType] || (rec.contours[contourType] = defaultContourInstance());
+    pushContourSnapshot(c);
+    c.points = precisionCore.insertPointOrdered(c.points, afterIndex, x, y);
+    return next;
+  }
+  // ---- BI-2F0A.2 -- vertex selection/drag/keyboard-nudge for contour (OPEN_POLYLINE) points,
+  // mirroring the review (CLOSED_POLYGON) editor's already-proven pattern exactly (same locked
+  // guard, same "one drag = one snapshot" discipline via the No-History variant).
+  function moveContourPoint(state, obsId, contourType, index, x, y) {
+    if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('moveContourPoint: x/y must be finite');
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('moveContourPoint: no record for this entry');
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c) throw new Error('moveContourPoint: no contour instance for this type');
+    if (index < 0 || index >= c.points.length) throw new Error('moveContourPoint: index out of range');
+    pushContourSnapshot(c);
+    c.points[index] = { x: x, y: y };
+    return next;
+  }
+  /** Used during an active drag's pointermove -- updates the point WITHOUT pushing a new
+   *  snapshot, so a whole drag gesture (many pointermoves) still equals exactly one undo entry
+   *  once beginContourDragTransaction pushed the pre-drag snapshot at pointerdown. */
+  function moveContourPointNoHistory(state, obsId, contourType, index, x, y) {
+    if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('moveContourPointNoHistory: x/y must be finite');
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('moveContourPointNoHistory: no record for this entry');
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c) throw new Error('moveContourPointNoHistory: no contour instance for this type');
+    if (index < 0 || index >= c.points.length) throw new Error('moveContourPointNoHistory: index out of range');
+    c.points[index] = { x: x, y: y };
+    return next;
+  }
+  function beginContourDragTransaction(state, obsId, contourType) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('beginContourDragTransaction: no record for this entry');
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c) throw new Error('beginContourDragTransaction: no contour instance for this type');
+    pushContourSnapshot(c);
+    return next;
+  }
+  /** Arrow-key nudge (Part 6: 1 raw image px, Shift+Arrow: 5 raw image px). One keypress = one
+   *  snapshot (via moveContourPoint), matching the review editor's nudgeHandlePoint exactly. */
+  function nudgeContourPoint(state, obsId, contourType, index, dx, dy) {
+    var rec = contourEntryRecord(state, obsId);
+    var c = rec.contours[contourType]; if (!c || index < 0 || index >= c.points.length) throw new Error('nudgeContourPoint: index out of range');
+    var p = c.points[index];
+    return moveContourPoint(state, obsId, contourType, index, p.x + dx, p.y + dy);
+  }
+  /** Deletes exactly the point at `index` (click-select + Delete/Backspace path) -- distinct
+   *  from undoLastContourPoint (which always targets the LAST point / most recent snapshot).
+   *  Refuses to remove the only remaining point (a 0-point "traced" contour is meaningless). */
+  function deleteContourPointAt(state, obsId, contourType, index) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('deleteContourPointAt: no record for this entry');
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c) throw new Error('deleteContourPointAt: no contour instance for this type');
+    if (index < 0 || index >= c.points.length) throw new Error('deleteContourPointAt: index out of range');
+    if (c.points.length <= 1) throw new Error('deleteContourPointAt: refusing to remove the only remaining point');
+    pushContourSnapshot(c);
+    c.points.splice(index, 1);
+    return next;
+  }
+  /** Removes exactly the last point, if any (Part 20 test 8). Safe no-op on an empty contour.
+   *  BI-2F0A.2: now backed by the unified snapshot history (pushContourSnapshot) -- for a
+   *  history that only ever appended points this produces the IDENTICAL observable result as
+   *  popping the last point, so existing append-only callers see no behavior change. */
   function undoLastContourPoint(state, obsId, contourType) {
     var next = JSON.parse(JSON.stringify(state));
     var rec = next.byEntry[obsId]; if (!rec) return next;
-    var c = rec.contours[contourType]; if (!c || !c.points.length) return next;
-    c.points.pop();
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c || !c.history || !c.history.length) return next;
+    if (!Array.isArray(c.redoStack)) c.redoStack = [];
+    c.redoStack.push(JSON.parse(JSON.stringify(c.points)));
+    c.points = c.history.pop();
+    return next;
+  }
+  /** BI-2F0 Part 7: redo the snapshot undoLastContourPoint most recently restored-from. */
+  function redoLastContourPoint(state, obsId, contourType) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) return next;
+    assertContourNotLocked(rec, contourType);
+    var c = rec.contours[contourType]; if (!c || !c.redoStack || !c.redoStack.length) return next;
+    if (!Array.isArray(c.history)) c.history = [];
+    c.history.push(JSON.parse(JSON.stringify(c.points)));
+    c.points = c.redoStack.pop();
     return next;
   }
   /** Resets ONLY this one contour instance (points + status) -- every other contour type and
@@ -816,7 +927,54 @@
   function clearContour(state, obsId, contourType) {
     var next = JSON.parse(JSON.stringify(state));
     var rec = next.byEntry[obsId]; if (!rec) return next;
+    assertContourNotLocked(rec, contourType);
     rec.contours[contourType] = defaultContourInstance();
+    return next;
+  }
+  /** BI-2F0 Part 20: locks a contour (blind GT). After this, addContourPoint/insertContourPoint/
+   *  undoLastContourPoint/redoLastContourPoint/clearContour all refuse via assertContourNotLocked. */
+  function lockContour(state, obsId, contourType, precisionCore, meta) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('lockContour: no record for this entry');
+    var c = rec.contours[contourType]; if (!c) throw new Error('lockContour: no contour instance for this type');
+    if (c.locked) throw new Error('lockContour: already locked -- create a new revision instead of re-locking');
+    var lockMeta = Object.assign({ entryKey: obsId, target: contourType, revision: isFiniteNum(c.revisionNumber) ? c.revisionNumber : 1 }, meta || {});
+    var record = precisionCore.lockBlindAnnotation(c.points, 'OPEN_POLYLINE', lockMeta);
+    // BI-2F0A.4: if this instance is itself a revision (created via createContourRevision), carry
+    // its lineage (basedOnFingerprint/basedOnRevision) forward onto the newly-locked record too.
+    if (c.basedOnFingerprint != null) {
+      record = Object.freeze(Object.assign({}, record, { basedOnFingerprint: c.basedOnFingerprint, basedOnRevision: c.basedOnRevision }));
+    }
+    c.lockedRecord = record;
+    c.locked = true;
+    return next;
+  }
+  /** BI-2F0A.4 (Part "Create New Revision"): the sanctioned UI action for revising a locked BLIND
+   *  GT contour. The original locked record is NEVER mutated -- it is archived (append-only) into
+   *  priorRevisions, and a brand-new, independently-editable instance is created starting from a
+   *  COPY of the locked geometry, with an incremented revisionNumber and explicit
+   *  basedOnFingerprint/basedOnRevision lineage back to the record it was revised from. Editing
+   *  the new instance is allowed immediately (locked:false); editing the archived original remains
+   *  permanently refused via assertContourNotLocked, since c.locked here is a NEW object entirely
+   *  -- the old locked instance is never referenced as "the current instance" again. */
+  function createContourRevision(state, obsId, contourType, precisionCore, meta) {
+    var next = JSON.parse(JSON.stringify(state));
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('createContourRevision: no record for this entry');
+    var c = rec.contours[contourType]; if (!c) throw new Error('createContourRevision: no contour instance for this type');
+    if (!c.locked || !c.lockedRecord) throw new Error('createContourRevision: source contour is not locked -- nothing to revise');
+    var lockedSrc = c.lockedRecord;
+    var priorRevisions = (c.priorRevisions || []).concat([lockedSrc]);
+    rec.contours[contourType] = {
+      traceabilityStatus: c.traceabilityStatus || CONTOUR_PENDING_STATUS,
+      points: lockedSrc.points.map(function (p) { return { x: p.x, y: p.y }; }),
+      notes: c.notes ? String(c.notes) : '',
+      history: [], redoStack: [],
+      locked: false, lockedRecord: null,
+      revisionNumber: lockedSrc.revision + 1,
+      basedOnFingerprint: lockedSrc.fingerprint,
+      basedOnRevision: lockedSrc.revision,
+      priorRevisions: priorRevisions
+    };
     return next;
   }
   function setContourNotes(state, obsId, contourType, notes) {
@@ -930,7 +1088,15 @@
       Object.keys(sc).forEach(function (ct) {
         if (!fresh.byEntry[obsId].contours[ct]) { dropped.push(obsId + '/' + ct); return; }
         var c = sc[ct] || {};
-        var pts = Array.isArray(c.points) ? c.points.filter(function (p) { return p && isFiniteNum(p.x) && isFiniteNum(p.y); }).map(function (p) { return { x: p.x, y: p.y }; }) : [];
+        // BI-2F0A.4: a BLIND-GT lock must survive reload (that is the entire point of "locked" --
+        // an annotator who reloads mid-session must not find their locked answer silently
+        // reverted to editable). Fails closed to unlocked if the saved lockedRecord is not
+        // structurally plausible -- never trusts a garbled/tampered lock as valid.
+        var validLockedRecord = (c.locked === true && c.lockedRecord && typeof c.lockedRecord === 'object'
+          && typeof c.lockedRecord.fingerprint === 'string' && Array.isArray(c.lockedRecord.points)) ? c.lockedRecord : null;
+        var pts = validLockedRecord
+          ? validLockedRecord.points.map(function (p) { return { x: p.x, y: p.y }; })
+          : (Array.isArray(c.points) ? c.points.filter(function (p) { return p && isFiniteNum(p.x) && isFiniteNum(p.y); }).map(function (p) { return { x: p.x, y: p.y }; }) : []);
         // BI-1Y CORRECTION (Part 5): a saved CONTOUR_PENDING_STATUS ('UNSET') is a legitimate,
         // distinct value and must round-trip as itself -- it must NEVER be coerced into the real
         // answer 'UNKNOWN' just because it isn't a member of TRACEABILITY_STATUSES. Only a truly
@@ -938,9 +1104,21 @@
         // never to a real answer nobody actually chose.
         var status = (TRACEABILITY_STATUSES.indexOf(c.traceabilityStatus) !== -1 || c.traceabilityStatus === CONTOUR_PENDING_STATUS)
           ? c.traceabilityStatus : CONTOUR_PENDING_STATUS;
-        if (status === 'TRACED' && pts.length < MIN_CONTOUR_POINTS) status = CONTOUR_PENDING_STATUS; // fail closed, never trust a broken TRACED
-        if (status !== 'TRACED') pts = [];
-        fresh.byEntry[obsId].contours[ct] = { traceabilityStatus: status, points: pts, notes: c.notes == null ? '' : String(c.notes) };
+        if (status === 'TRACED' && pts.length < MIN_CONTOUR_POINTS && !validLockedRecord) status = CONTOUR_PENDING_STATUS; // fail closed, never trust a broken TRACED
+        if (status !== 'TRACED' && !validLockedRecord) pts = [];
+        fresh.byEntry[obsId].contours[ct] = {
+          traceabilityStatus: status, points: pts, notes: c.notes == null ? '' : String(c.notes),
+          history: [], redoStack: [], // undo/redo history is intentionally NOT persisted across reloads
+          locked: !!validLockedRecord,
+          lockedRecord: validLockedRecord ? Object.freeze(JSON.parse(JSON.stringify(validLockedRecord))) : null,
+          revisionNumber: isFiniteNum(c.revisionNumber) ? c.revisionNumber : 1,
+          basedOnFingerprint: c.basedOnFingerprint != null ? c.basedOnFingerprint : null,
+          basedOnRevision: isFiniteNum(c.basedOnRevision) ? c.basedOnRevision : null,
+          priorRevisions: Array.isArray(c.priorRevisions)
+            ? c.priorRevisions.filter(function (r) { return r && typeof r.fingerprint === 'string' && Array.isArray(r.points); })
+              .map(function (r) { return Object.freeze(JSON.parse(JSON.stringify(r))); })
+            : []
+        };
       });
     });
     fresh.position = isFiniteNum(autosave.position) ? Math.max(0, Math.min(autosave.position, (bundle.entries || []).length - 1)) : 0;
@@ -979,7 +1157,20 @@
           imageWidth: isFiniteNum(rec.imageWidth) ? rec.imageWidth : null,
           imageHeight: isFiniteNum(rec.imageHeight) ? rec.imageHeight : null,
           sourceMethod: MANUAL_GROUND_TRUTH,
-          notes: c.notes ? String(c.notes) : null
+          notes: c.notes ? String(c.notes) : null,
+          // BI-2F0A.4: BLIND-GT revision lineage. revisionNumber is 1 for an original,
+          // never-revised annotation. locked/lockedFingerprint describe THIS instance's own lock
+          // state (null fingerprint if this revision is still editable/unlocked).
+          // basedOnFingerprint/basedOnRevision identify the exact locked record this instance was
+          // revised FROM (null for an original). priorRevisionFingerprints lists every earlier
+          // locked record's fingerprint for this contour, oldest first -- none of them are ever
+          // overwritten or removed by creating a new revision.
+          revisionNumber: isFiniteNum(c.revisionNumber) ? c.revisionNumber : 1,
+          locked: c.locked === true,
+          lockedFingerprint: (c.locked && c.lockedRecord) ? c.lockedRecord.fingerprint : null,
+          basedOnFingerprint: c.basedOnFingerprint != null ? c.basedOnFingerprint : null,
+          basedOnRevision: isFiniteNum(c.basedOnRevision) ? c.basedOnRevision : null,
+          priorRevisionFingerprints: (c.priorRevisions || []).map(function (r) { return r.fingerprint; })
           // NO rawImagePayload / base64 / dataUrl
         });
       });
@@ -1095,7 +1286,14 @@
       // attached; never inferred/backfilled for older instances that predate this field.
       proposalPriorSource: null, machineProposalMode: null, oldHumanSpatialHintUsed: null,
       notes: '',
-      history: [] // internal-only undo stack of prior humanFinalPoints snapshots
+      history: [], // internal-only undo stack of prior humanFinalPoints snapshots
+      // BI-2F0 additions (backward compatible -- an older restored instance simply lacks these;
+      // every reader below treats a missing redoStack/locked/lockedRecord as [] / false / null,
+      // never as an error).
+      redoStack: [], locked: false, lockedRecord: null,
+      // BI-2F0A.4 additions (backward compatible, same semantics as the contour instance's
+      // identically-named fields -- see defaultContourInstance).
+      revisionNumber: 1, basedOnFingerprint: null, basedOnRevision: null, priorRevisions: []
     };
   }
   function initAssistedReviewState(bundle) {
@@ -1132,8 +1330,10 @@
     return next;
   }
   function pushHistory(inst) {
+    if (!Array.isArray(inst.history)) inst.history = []; // backward compat: older restored instance
     inst.history.push(JSON.parse(JSON.stringify(inst.humanFinalPoints)));
     if (inst.history.length > 50) inst.history.shift();
+    inst.redoStack = []; // BI-2F0: any fresh forward edit invalidates the old redo future
   }
 
   /** MACHINE PROPOSES. Attaches a freshly-generated proposal to one review instance. Never a
@@ -1168,6 +1368,7 @@
 
   // ---- USER DRAGS / CORRECTS -- every mutation pushes undo history and marks the instance dirty
   function moveHandlePoint(state, obsId, target, index, x, y) {
+    assertReviewTargetNotLocked(state, obsId, target);
     if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('moveHandlePoint: x/y must be finite');
     var next = cloneState(state);
     var inst = ensureInstance(next, obsId, target);
@@ -1202,6 +1403,7 @@
     return next;
   }
   function addHandlePoint(state, obsId, target, afterIndex, x, y) {
+    assertReviewTargetNotLocked(state, obsId, target);
     if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('addHandlePoint: x/y must be finite');
     var next = cloneState(state);
     var inst = ensureInstance(next, obsId, target);
@@ -1212,6 +1414,7 @@
     return next;
   }
   function deleteHandlePoint(state, obsId, target, index) {
+    assertReviewTargetNotLocked(state, obsId, target);
     var next = cloneState(state);
     var inst = ensureInstance(next, obsId, target);
     if (index < 0 || index >= inst.humanFinalPoints.length) throw new Error('deleteHandlePoint: index out of range');
@@ -1224,9 +1427,12 @@
     return next;
   }
   function undoLastEdit(state, obsId, target) {
+    assertReviewTargetNotLocked(state, obsId, target);
     var next = cloneState(state);
     var inst = ensureInstance(next, obsId, target);
     if (!inst.history.length) return next; // nothing to undo -- safe no-op
+    if (!Array.isArray(inst.redoStack)) inst.redoStack = [];
+    inst.redoStack.push(JSON.parse(JSON.stringify(inst.humanFinalPoints))); // BI-2F0: enables redoLastEdit
     inst.humanFinalPoints = inst.history.pop();
     return next;
   }
@@ -1234,6 +1440,7 @@
    *  counters/history. The immutable originalProposalPoints/originalHandlePoints themselves are
    *  never touched by this or any other function -- provenance is always recoverable. */
   function resetToProposal(state, obsId, target) {
+    assertReviewTargetNotLocked(state, obsId, target);
     var next = cloneState(state);
     var inst = ensureInstance(next, obsId, target);
     if (!inst.originalHandlePoints) throw new Error('resetToProposal: no proposal attached for this instance');
@@ -1241,6 +1448,104 @@
     inst.editCount = 0; inst.pointsMoved = 0; inst.pointsAdded = 0; inst.pointsDeleted = 0;
     inst.history = [];
     inst.humanReviewStatus = REVIEW_PENDING_STATUS;
+    return next;
+  }
+  // ---- BI-2F0 Part 7: REDO (undo's mirror image). Symmetric with undoLastEdit -- pops the most
+  // recent redo entry (pushed by undoLastEdit below) and restores it, moving the just-undone
+  // state onto a redo stack so a fresh edit anywhere can invalidate it naturally (see
+  // pushHistory's caller sites, which are untouched: any NEW edit still clears history the same
+  // way it always has via ensureInstance/cloneState -- redoStack is cleared explicitly there too).
+  function redoLastEdit(state, obsId, target) {
+    assertReviewTargetNotLocked(state, obsId, target);
+    var next = cloneState(state);
+    var inst = ensureInstance(next, obsId, target);
+    if (!inst.redoStack || !inst.redoStack.length) return next; // nothing to redo -- safe no-op
+    inst.history.push(JSON.parse(JSON.stringify(inst.humanFinalPoints)));
+    inst.humanFinalPoints = inst.redoStack.pop();
+    return next;
+  }
+  // ---- BI-2F0 Part 16 fix: dragging previously called moveHandlePoint (which pushes history) on
+  // EVERY pointermove -- hundreds of undo entries per gesture. This variant updates the point
+  // WITHOUT touching history/redo at all; the UI calls beginDragTransaction ONCE at drag-start
+  // (captures the pre-drag position) and this on every subsequent pointermove, so one completed
+  // drag = exactly one undo entry (Part 7).
+  function beginDragTransaction(state, obsId, target) {
+    assertReviewTargetNotLocked(state, obsId, target);
+    var next = cloneState(state);
+    var inst = ensureInstance(next, obsId, target);
+    pushHistory(inst);
+    inst.redoStack = []; // a fresh edit invalidates any old redo future
+    return next;
+  }
+  function moveHandlePointNoHistory(state, obsId, target, index, x, y) {
+    assertReviewTargetNotLocked(state, obsId, target);
+    if (!isFiniteNum(x) || !isFiniteNum(y)) throw new Error('moveHandlePointNoHistory: x/y must be finite');
+    var next = cloneState(state);
+    var inst = ensureInstance(next, obsId, target);
+    if (index < 0 || index >= inst.humanFinalPoints.length) throw new Error('moveHandlePointNoHistory: index out of range');
+    inst.humanFinalPoints[index] = { x: x, y: y };
+    return next;
+  }
+  // ---- BI-2F0 Part 13: a genuinely BLANK reset for the active target only (distinct from
+  // resetToProposal, which restores the machine's own suggestion). Never touches any other
+  // target, image, or namespace.
+  function resetCurrentReviewTarget(state, obsId, target) {
+    assertReviewTargetNotLocked(state, obsId, target);
+    var next = cloneState(state);
+    var inst = ensureInstance(next, obsId, target);
+    inst.humanFinalPoints = [];
+    inst.editCount = 0; inst.pointsMoved = 0; inst.pointsAdded = 0; inst.pointsDeleted = 0;
+    inst.history = []; inst.redoStack = [];
+    inst.humanReviewStatus = REVIEW_PENDING_STATUS;
+    inst.locked = false; inst.lockedRecord = null;
+    return next;
+  }
+  // ---- BI-2F0 Part 20/21: BLIND-GT LOCK. Locking freezes the CURRENT humanFinalPoints into an
+  // immutable lockedRecord (via precision-annotation-core's lockBlindAnnotation) and flips
+  // inst.locked -- every mutating function above must be called only after the UI has checked
+  // `!inst.locked` (index.html's own guard); this data layer additionally refuses here so a
+  // future comparison/review tool that calls these functions directly cannot silently mutate a
+  // locked answer either.
+  function lockReviewTarget(state, obsId, target, precisionCore, meta) {
+    var next = cloneState(state);
+    var inst = ensureInstance(next, obsId, target);
+    if (inst.locked) throw new Error('lockReviewTarget: already locked -- create a new revision instead of re-locking');
+    var lockMeta = Object.assign({ entryKey: obsId, target: target, revision: isFiniteNum(inst.revisionNumber) ? inst.revisionNumber : 1 }, meta || {});
+    var record = precisionCore.lockBlindAnnotation(inst.humanFinalPoints, 'CLOSED_POLYGON', lockMeta);
+    if (inst.basedOnFingerprint != null) {
+      record = Object.freeze(Object.assign({}, record, { basedOnFingerprint: inst.basedOnFingerprint, basedOnRevision: inst.basedOnRevision }));
+    }
+    inst.lockedRecord = record;
+    inst.locked = true;
+    return next;
+  }
+  function assertReviewTargetNotLocked(state, obsId, target) {
+    var inst = reviewInstance(state, obsId, target);
+    if (inst.locked) throw new Error('this target is LOCKED (blind GT) -- create a new revision rather than editing the locked original');
+  }
+  /** BI-2F0A.4: review-target counterpart to createContourRevision -- see that function's comment
+   *  for the full invariant explanation. The original locked record is archived, never mutated. */
+  function createReviewRevision(state, obsId, target, precisionCore, meta) {
+    var next = cloneState(state);
+    var rec = next.byEntry[obsId]; if (!rec) throw new Error('createReviewRevision: no record for this entry');
+    var inst = rec.targets && rec.targets[target]; if (!inst) throw new Error('createReviewRevision: no review instance for this target');
+    if (!inst.locked || !inst.lockedRecord) throw new Error('createReviewRevision: source review target is not locked -- nothing to revise');
+    var lockedSrc = inst.lockedRecord;
+    var priorRevisions = (inst.priorRevisions || []).concat([lockedSrc]);
+    rec.targets[target] = Object.assign({}, defaultReviewInstance(), {
+      proposalAlgorithm: inst.proposalAlgorithm, proposalAlgorithmVersion: inst.proposalAlgorithmVersion,
+      proposalParameters: inst.proposalParameters, proposalGeneratedAt: inst.proposalGeneratedAt,
+      originalProposalPoints: inst.originalProposalPoints, originalHandlePoints: inst.originalHandlePoints,
+      humanFinalPoints: lockedSrc.points.map(function (p) { return { x: p.x, y: p.y }; }),
+      humanReviewStatus: REVIEW_PENDING_STATUS,
+      proposalPriorSource: inst.proposalPriorSource || null, machineProposalMode: inst.machineProposalMode || null,
+      oldHumanSpatialHintUsed: (typeof inst.oldHumanSpatialHintUsed === 'boolean') ? inst.oldHumanSpatialHintUsed : null,
+      notes: inst.notes ? String(inst.notes) : '',
+      revisionNumber: lockedSrc.revision + 1,
+      basedOnFingerprint: lockedSrc.fingerprint,
+      basedOnRevision: lockedSrc.revision,
+      priorRevisions: priorRevisions
+    });
     return next;
   }
   function setReviewNotes(state, obsId, target, notes) {
@@ -1329,11 +1634,17 @@
       Object.keys(targets).forEach(function (t) {
         if (!fresh.byEntry[obsId].targets[t]) { dropped.push(obsId + '/' + t); return; }
         var inst = targets[t] || {};
+        // BI-2F0A.4: see restoreContourFromAutosave's identical comment -- a BLIND-GT lock must
+        // survive reload; fails closed to unlocked on any structurally implausible saved record.
+        var validLockedRecord = (inst.locked === true && inst.lockedRecord && typeof inst.lockedRecord === 'object'
+          && typeof inst.lockedRecord.fingerprint === 'string' && Array.isArray(inst.lockedRecord.points)) ? inst.lockedRecord : null;
         var status = (HUMAN_REVIEW_STATUSES.indexOf(inst.humanReviewStatus) !== -1 || inst.humanReviewStatus === REVIEW_PENDING_STATUS)
           ? inst.humanReviewStatus : REVIEW_PENDING_STATUS; // fail closed to pending, never to a real decision
-        var pts = Array.isArray(inst.humanFinalPoints) ? inst.humanFinalPoints.filter(function (p) { return p && isFiniteNum(p.x) && isFiniteNum(p.y); }).map(function (p) { return { x: p.x, y: p.y }; }) : [];
-        if (status === 'EDITED_AND_APPROVED' && pts.length < MIN_SILHOUETTE_POINTS) status = REVIEW_PENDING_STATUS;
-        if (status === 'REJECTED' || status === 'NOT_TRACEABLE') pts = [];
+        var pts = validLockedRecord
+          ? validLockedRecord.points.map(function (p) { return { x: p.x, y: p.y }; })
+          : (Array.isArray(inst.humanFinalPoints) ? inst.humanFinalPoints.filter(function (p) { return p && isFiniteNum(p.x) && isFiniteNum(p.y); }).map(function (p) { return { x: p.x, y: p.y }; }) : []);
+        if (status === 'EDITED_AND_APPROVED' && pts.length < MIN_SILHOUETTE_POINTS && !validLockedRecord) status = REVIEW_PENDING_STATUS;
+        if ((status === 'REJECTED' || status === 'NOT_TRACEABLE') && !validLockedRecord) pts = [];
         fresh.byEntry[obsId].targets[t] = {
           proposalAlgorithm: inst.proposalAlgorithm || null,
           proposalAlgorithmVersion: inst.proposalAlgorithmVersion || null,
@@ -1352,7 +1663,16 @@
           netVertexDisplacementPx: isFiniteNum(inst.netVertexDisplacementPx) ? inst.netVertexDisplacementPx : 0,
           totalVertexDisplacementPx: isFiniteNum(inst.totalVertexDisplacementPx) ? inst.totalVertexDisplacementPx : 0,
           notes: inst.notes == null ? '' : String(inst.notes),
-          history: [] // undo history is intentionally NOT persisted across reloads
+          history: [], redoStack: [], // undo/redo history is intentionally NOT persisted across reloads
+          locked: !!validLockedRecord,
+          lockedRecord: validLockedRecord ? Object.freeze(JSON.parse(JSON.stringify(validLockedRecord))) : null,
+          revisionNumber: isFiniteNum(inst.revisionNumber) ? inst.revisionNumber : 1,
+          basedOnFingerprint: inst.basedOnFingerprint != null ? inst.basedOnFingerprint : null,
+          basedOnRevision: isFiniteNum(inst.basedOnRevision) ? inst.basedOnRevision : null,
+          priorRevisions: Array.isArray(inst.priorRevisions)
+            ? inst.priorRevisions.filter(function (r) { return r && typeof r.fingerprint === 'string' && Array.isArray(r.points); })
+              .map(function (r) { return Object.freeze(JSON.parse(JSON.stringify(r))); })
+            : []
         };
       });
     });
@@ -1416,7 +1736,15 @@
           proposalPriorSource: inst.proposalPriorSource || null,
           machineProposalMode: inst.machineProposalMode || null,
           oldHumanSpatialHintUsed: (typeof inst.oldHumanSpatialHintUsed === 'boolean') ? inst.oldHumanSpatialHintUsed : null,
-          notes: inst.notes ? String(inst.notes) : null
+          notes: inst.notes ? String(inst.notes) : null,
+          // BI-2F0A.4: BLIND-GT revision lineage -- see buildContourExport's identical fields for
+          // the full explanation.
+          revisionNumber: isFiniteNum(inst.revisionNumber) ? inst.revisionNumber : 1,
+          locked: inst.locked === true,
+          lockedFingerprint: (inst.locked && inst.lockedRecord) ? inst.lockedRecord.fingerprint : null,
+          basedOnFingerprint: inst.basedOnFingerprint != null ? inst.basedOnFingerprint : null,
+          basedOnRevision: isFiniteNum(inst.basedOnRevision) ? inst.basedOnRevision : null,
+          priorRevisionFingerprints: (inst.priorRevisions || []).map(function (r) { return r.fingerprint; })
           // NO rawImagePayload / base64 / dataUrl
         });
       });
@@ -1560,6 +1888,16 @@
     setContourImageDimensions: setContourImageDimensions,
     addContourPoint: addContourPoint,
     undoLastContourPoint: undoLastContourPoint,
+    redoLastContourPoint: redoLastContourPoint,
+    insertContourPoint: insertContourPoint,
+    moveContourPoint: moveContourPoint,
+    moveContourPointNoHistory: moveContourPointNoHistory,
+    beginContourDragTransaction: beginContourDragTransaction,
+    nudgeContourPoint: nudgeContourPoint,
+    deleteContourPointAt: deleteContourPointAt,
+    lockContour: lockContour,
+    createContourRevision: createContourRevision,
+    assertContourNotLocked: assertContourNotLocked,
     clearContour: clearContour,
     setContourNotes: setContourNotes,
     setContourTraceabilityStatus: setContourTraceabilityStatus,
@@ -1592,6 +1930,13 @@
     addHandlePoint: addHandlePoint,
     deleteHandlePoint: deleteHandlePoint,
     undoLastEdit: undoLastEdit,
+    redoLastEdit: redoLastEdit,
+    beginDragTransaction: beginDragTransaction,
+    moveHandlePointNoHistory: moveHandlePointNoHistory,
+    resetCurrentReviewTarget: resetCurrentReviewTarget,
+    lockReviewTarget: lockReviewTarget,
+    createReviewRevision: createReviewRevision,
+    assertReviewTargetNotLocked: assertReviewTargetNotLocked,
     resetToProposal: resetToProposal,
     setReviewNotes: setReviewNotes,
     setReviewStatus: setReviewStatus,

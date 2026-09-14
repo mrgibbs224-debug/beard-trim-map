@@ -34,7 +34,10 @@ test('2: generateProposal is declared with an explicit target parameter', () => 
   assert.match(WORKBENCH_INDEX_HTML, /function generateProposal\(e, target\)\{/);
 });
 test('3: onReviewButton passes the clicked button\'s own data-t straight into generateProposal (the exact fix for the reported bug)', () => {
-  assert.match(WORKBENCH_INDEX_HTML, /if\(act==='generate'\)\{ generateProposal\(e, t\); return; \}/);
+  // BI-2F0 added a BLIND_GT early-return guard in front of this same call (machine proposals are
+  // never generated for a blind bundle) -- the fix this test protects (passing the button's own
+  // `t`, not a stale/shared constant, into generateProposal) is unchanged and still present.
+  assert.match(WORKBENCH_INDEX_HTML, /if\(act==='generate'\)\{[\s\S]*?generateProposal\(e, t\); return; \}/);
 });
 test('4: onReviewButton keeps a shared "active target" in sync with every per-target button click, for the non-button code paths (Add-point, magnifier, keyboard) that have no data-t of their own', () => {
   assert.match(WORKBENCH_INDEX_HTML, /if\(t\) activeReviewTarget=t;/);
