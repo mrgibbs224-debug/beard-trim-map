@@ -39,6 +39,23 @@
   #geomOverlay .rail.active-region.proxy{stroke:var(--warn);stroke-dasharray:5 4}
   #geomOverlay .node.active-region{fill:var(--accent);fill-opacity:1}
   #geomOverlay .node.active-region.proxy{fill:var(--warn)}
+  /* BI-2F1 -- neutral BLIND_GT evaluation-target outline: task definition only (WHERE to judge),
+     deliberately a single neutral gray/white, never a beard/skin-coded color (no green=beard,
+     red=skin, or similar), never filled solid, never carrying a model result of any kind.
+     BI-2F1 visibility fix -- the original single light-gray stroke (#e8ecf1) was nearly
+     indistinguishable from a light synthetic image background of a similar tone. A dark
+     semi-transparent "halo" polygon is drawn first (same points, no dash, wider, grayscale
+     only), with the light dashed outline drawn on top -- this two-tone treatment stays fully
+     neutral (black/white only, still zero beard/skin/model-result color coding) while staying
+     legible against both dark and light source imagery. Geometry/points are unchanged either
+     way -- both polygons render from the exact same regionEvaluationRoi point list. */
+  #geomOverlay .eval-roi-halo{fill:none;stroke:rgba(10,12,14,.6);stroke-width:5;vector-effect:non-scaling-stroke}
+  #geomOverlay .eval-roi{fill:rgba(245,247,250,.16);stroke:#f5f7fa;stroke-width:2.5;stroke-dasharray:8 5;vector-effect:non-scaling-stroke}
+  /* Small neutral task-definition label ("TARGET AREA") drawn at the ROI centroid. paint-order
+     puts a dark halo stroke behind the light fill so the label reads on any background; wording
+     is deliberately restricted to naming the task (where to look), never a class, confidence,
+     or predicted result. */
+  #geomOverlay .eval-roi-label{fill:#f5f7fa;stroke:rgba(10,12,14,.7);stroke-width:3;paint-order:stroke;font:600 22px system-ui,Segoe UI,Roboto,sans-serif;letter-spacing:.04em;text-anchor:middle}
   /* BI-1Y — the user's outer-beard contour is a wholly distinct color/layer from the jaw-rail
      geometry reference above: contour = visible outer beard boundary, jaw rail = internal
      reference only. Same raw-image-pixel viewBox technique, drawn in its own overlay. */
@@ -199,6 +216,7 @@
 
     <div class="card" id="cardRegions" hidden>
       <h2>Regions to label</h2>
+      <div class="body" id="regionLockBar" hidden></div>
       <div class="body" id="regions"></div>
       <div class="body muted" style="border-top:1px solid var(--line)">
         Keyboard (only when an entry is focused, not in a text box):
@@ -476,11 +494,34 @@
     var host=el('regions'); host.innerHTML='';
     var entryId=A.entryKey(e);
     var m=A.entryLabels(state, entryId);
+    var blindRegions=isBlindBundle();
+    var entryMeta = A.entryMetaOf(state, entryId);
+    var entryLocked = entryMeta.locked===true;
+    // BI-2F1 -- ONE lock control per image/entry (not per-region): shown above the region list.
+    // "Lock Blind Answers" freezes every requested region's CURRENT answer together; refuses
+    // (via lockEntryAnswers's own completeness check, surfaced as a toast) until every region has
+    // an explicit non-pending decision. "Create New Revision" is shown only once locked.
+    if(bundle && PC && PC.isBlindGtBundle(bundle) && (e.regionsToAnnotate||[]).length){
+      var canLock = A.isEntryComplete(m, e.regionsToAnnotate) && !entryLocked;
+      el('regionLockBar').hidden=false;
+      el('regionLockBar').innerHTML =
+        '<div class="row muted">Revision <b>'+(entryMeta.revisionNumber||1)+'</b> — '+(entryLocked?'Locked':'Editable')+(entryMeta.basedOnRevision!=null?' (revised from Revision '+entryMeta.basedOnRevision+')':'')+'</div>'+
+        '<div class="row">'+
+          '<button data-act="lockEntry" '+(entryLocked||!canLock?'disabled':'')+'>'+(entryLocked?'LOCKED':'Lock Blind Answers')+'</button>'+
+          (entryLocked ? '<button data-act="reviseEntry">Create New Revision</button>' : '')+
+        '</div>';
+    }else{
+      el('regionLockBar').hidden=true; el('regionLockBar').innerHTML='';
+    }
     // BI-1E PRE-ANNOTATION CORRECTION: two INDEPENDENT badges per region.
     //   - Geometry badge: is there a trustworthy landmark rail to highlight? (regionVisualReference,
     //     further downgraded if THIS image's overlay failed the fail-closed / in-bounds check.)
     //   - Labelability badge: can a human classify this region from the raw photo at all? This is
     //     what actually gates the HairState options — it no longer depends on geometry support.
+    // BI-2F1 Part 7 -- for a BLIND_GT bundle, the geometry-support tier badge/notes are hidden
+    // entirely (they describe whether a MODEL-usable landmark rail exists, not the task itself);
+    // only the labelability badge, the plain-language target definition, and the labeling
+    // controls remain.
     var overlayOkForImage = A.overlayAvailable(e) && A.overlayPointsInImageBounds(e) !== false;
     (e.regionsToAnnotate||[]).forEach(function(rg){
       var l=m[rg]||A.defaultRegionLabel();
@@ -509,15 +550,25 @@
       d.className='region'+(rg===activeRegion?' active':'');
       d.setAttribute('data-region', rg);
       d.tabIndex=0;
-      d.addEventListener('focus',function(){ activeRegion=rg; markActive(); renderGeometryGuide(e); });
+      // BI-2F1 UX fix -- 'focus' does not bubble, so it only fired when the card DIV itself was
+      // focused directly, never when a child HAIR/SKIN SURFACE/Status/Confidence/Notes control
+      // was clicked or tabbed into (the actual real-world interaction). 'focusin' bubbles from
+      // any descendant (covers keyboard tab-into-a-child); 'click' covers mouse activation on
+      // the header/blank card area, which are not natively focusable. Neither handler mutates
+      // any label -- activation only updates activeRegion, the active-card highlight, and
+      // redraws the neutral ROI overlay (renderGeometryGuide), never onField/setRegionLabel.
+      var activateThisRegion=function(){ if(activeRegion!==rg){ activeRegion=rg; markActive(); renderGeometryGuide(e); } };
+      d.addEventListener('focusin', activateThisRegion);
+      d.addEventListener('click', activateThisRegion);
       d.innerHTML='<h3>'+rg+'</h3>'+
+        (blindRegions ? '' :
         '<div class="row" style="margin:-4px 0 6px">'+
           '<span class="tier-badge '+geomCls+'">'+geomText+'</span>'+
           '<span class="tier-badge '+labCls+'">'+labText+'</span>'+
         '</div>'+
         (ref.tier==='VERIFIED' && ref.note ? '<div class="region-ref-note">'+ref.note+'</div>' : '')+
         (ref.tier==='PROXY' ? '<div class="region-ref-note">'+ref.note+'</div>' : '')+
-        (imageBlocksReference ? '<div class="region-ref-note unsupported">⚠ '+geomNoteText+' — label from the raw photo.</div>' : '')+
+        (imageBlocksReference ? '<div class="region-ref-note unsupported">⚠ '+geomNoteText+' — label from the raw photo.</div>' : ''))+
         (guidanceText ? '<div class="region-ref-note'+(lab.semanticDescription?'':' unsupported')+'">'+(lab.semanticDescription?'':'⚠ ')+guidanceText+'</div>' : '')+
         '<div class="row"><label>HAIR</label>'+sel('hs',rg,hsOpts,l.hairState,A.HAIR_STATE_DISPLAY)+'</div>'+
         '<div class="row"><label>SKIN SURFACE'+(soRequired?' *':'')+'</label>'+selSurface(rg,soOpts,l.surfaceObservability)+'</div>'+
@@ -526,10 +577,12 @@
         '<div class="row"><label>Confidence</label><input type="number" min="0" max="1" step="0.05" data-k="cf" data-r="'+rg+'" value="'+(l.annotationConfidence==null?'':l.annotationConfidence)+'" placeholder="blank = unknown" style="width:150px"></div>'+
         '<div class="row"><label>Notes</label><textarea data-k="nt" data-r="'+rg+'" placeholder="optional">'+(l.notes||'')+'</textarea></div>';
       host.appendChild(d);
+      if(entryLocked){ d.querySelectorAll('select,input,textarea').forEach(function(c){ c.disabled=true; }); }
     });
     host.querySelectorAll('select,input,textarea').forEach(function(c){
       c.addEventListener('change', onField); c.addEventListener('input', function(ev){ if(c.tagName==='TEXTAREA'||c.type==='number') onField(ev); });
     });
+    el('regionLockBar').querySelectorAll('button').forEach(function(b){ b.addEventListener('click', onRegionPanelButton); });
     // nav + progress
     el('btnPrev').disabled = state.position<=0;
     el('btnNext').disabled = state.position>=bundle.entries.length-1;
@@ -537,10 +590,18 @@
     el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
     el('progressDetail').innerHTML=
       'images completed: <b>'+p.imagesCompleted+'</b> / '+p.imageTotal+'<br>'+
+      (isBlindBundle() ? 'images locked: <b>'+p.imagesLocked+'</b> / '+p.imageTotal+'<br>' : '')+
       'images needing review: <b>'+p.imagesNeedingReview+'</b><br>'+
       'ambiguous labels: <b>'+p.ambiguousLabels+'</b><br>'+
       'excluded labels: <b>'+p.excludedLabels+'</b>'+
       renderTargetChecklist(e);
+    // BI-2F1 (Part "Categorical export gating") -- for a BLIND_GT bundle, Export additionally
+    // requires every image to be complete AND LOCKED, re-checked on every render (not just once
+    // at load); historical non-BLIND behavior (gated only on "does this bundle have any regions
+    // at all", set once at load) is left completely untouched.
+    if(isBlindBundle()){
+      el('btnExport').disabled = !(p.regionsRequested>0 && p.imagesCompleted===p.imageTotal && p.imagesLocked===p.imageTotal);
+    }
     renderContours(e);
     renderReview(e);
     // BI-2F0A.1 -- re-measure on every render (covers zoom-slider changes and any other
@@ -1363,7 +1424,31 @@
     var manualOn = !blind && !!(state && state.geometryGuide) && available;
     btn.disabled = !available || blind;
     btn.textContent = 'Geometry Guide: ' + (blind ? 'OFF (blind GT)' : (!available ? 'N/A' : (manualOn ? 'ON' : 'OFF')));
-    if(blind){ svg.style.display='none'; svg.innerHTML=''; note.textContent='BLIND GT bundle -- geometry guide is disabled for this task.'; return; }
+    if(blind){
+      // BI-2F1 Part "Exact BI-2E holdout target definition" -- BLIND means blind to the MODEL
+      // ANSWER, not blind to the spatial area being judged. If this entry declares an exact,
+      // prediction-independent evaluation ROI for the currently-focused region (regionEvaluationRoi,
+      // derived from the same frozen BI-2E/JAW_SUPPORT ROI geometry or the BI-2C
+      // CHIN_NECK_TRANSITION_RAIL projection -- never from any Hairness/occupancy output), it is
+      // drawn as a single neutral (non color-coded) dashed outline: task definition, not a result.
+      var roiDef = activeRegion && e.regionEvaluationRoi && e.regionEvaluationRoi[activeRegion];
+      if(roiDef && Array.isArray(roiDef.points) && roiDef.points.length>1 && A.imageRenderable(e)){
+        var w=e.imageWidth||1, h=e.imageHeight||1;
+        svg.setAttribute('viewBox','0 0 '+w+' '+h);
+        var pts=roiDef.points.map(function(p){ return p.x+','+p.y; }).join(' ');
+        var cx=roiDef.points.reduce(function(s,p){ return s+p.x; },0)/roiDef.points.length;
+        var cy=roiDef.points.reduce(function(s,p){ return s+p.y; },0)/roiDef.points.length;
+        svg.innerHTML='<polygon class="eval-roi-halo" points="'+pts+'"></polygon>'+
+          '<polygon class="eval-roi" points="'+pts+'"></polygon>'+
+          '<text class="eval-roi-label" x="'+cx+'" y="'+cy+'">TARGET AREA</text>';
+        svg.style.display='block';
+        note.textContent='Evaluation target area for '+activeRegion+' -- judge only the area inside the dashed outline. This outline is a task definition, never a model result.';
+      }else{
+        svg.style.display='none'; svg.innerHTML='';
+        note.textContent = activeRegion ? 'No exact target outline is available for this region on this image -- use the plain-language description shown above it.' : 'BLIND GT bundle -- select a region to see its evaluation target area (if one is defined).';
+      }
+      return;
+    }
     var ref = activeRegion ? A.regionVisualReference(activeRegion) : null;
     var lab = activeRegion ? A.regionLabelability(activeRegion) : null;
     var activeGroupId = (ref && ref.tier !== 'UNSUPPORTED') ? ref.overlayGroupId : null;
@@ -1450,6 +1535,18 @@
     // light refresh of progress only (don't blow away focus/caret)
     var p=A.progressCounts(bundle,state);
     el('progress').textContent='Image '+(p.imageIndex+1)+' / '+p.imageTotal+'  ·  regions labeled '+p.regionsLabeled+' / '+p.regionsRequested;
+  }
+  // BI-2F1 -- ONE lock/revision control per image/entry for the categorical region-labeling
+  // path, mirroring the contour/review editors' own lock/revision buttons exactly.
+  function onRegionPanelButton(ev){
+    var act=ev.target.getAttribute('data-act');
+    var e=curEntry(), id=A.entryKey(e);
+    try{
+      if(act==='lockEntry'){ state=A.lockEntryAnswers(state,id,bundle,PC,{bundleId:bundle.bundleId||null}); toast('Locked answers for this image.'); }
+      else if(act==='reviseEntry'){ state=A.createCategoricalRevision(state,id,PC); toast('New editable revision created for this image.'); }
+    }catch(err){ toast(err.message); return; }
+    saveLocal();
+    render();
   }
 
   el('btnPrev').addEventListener('click', function(){ state=A.navigate(state,-1,bundle.entries.length); activeRegion=null; activeContourType=null; contourInsertMode=false; focusedContourType=null; selectedHandle=null; selectedContourType=null; selectedContourIndex=null; addPointMode=false; hoverImagePoint=null; saveLocal(); render(); });

@@ -191,11 +191,18 @@ test('10e: RIGHT_UNDER_JAW is not a separate new semantic region (fails closed l
 });
 
 // 10f — the pre-existing UNDER_JAW_CENTER (a genuinely distinct canonical key, not left/right)
-// and NECK_*/CHIN_NECK_TRANSITION are untouched, still UNKNOWN_ONLY.
-test('10f: UNDER_JAW_CENTER and NECK_*/CHIN_NECK_TRANSITION remain unsupported and untouched', () => {
-  for (const region of ['UNDER_JAW_CENTER', 'NECK_FRONT', 'NECK_LEFT', 'NECK_RIGHT', 'CHIN_NECK_TRANSITION']) {
+// and NECK_FRONT/LEFT/RIGHT are untouched, still UNKNOWN_ONLY. CHIN_NECK_TRANSITION was
+// deliberately promoted in BI-2F1 (real, non-beard-model evidence: BI-2C's
+// CHIN_NECK_TRANSITION_RAIL personalized geometric estimate) -- see bi2f1-categorical-blind-lock
+// test file for the dedicated coverage of that promotion.
+test('10f: UNDER_JAW_CENTER and NECK_FRONT/LEFT/RIGHT remain unsupported and untouched', () => {
+  for (const region of ['UNDER_JAW_CENTER', 'NECK_FRONT', 'NECK_LEFT', 'NECK_RIGHT']) {
     assert.equal(AWB.regionLabelability(region).tier, 'UNKNOWN_ONLY', region + ' must remain unsupported');
   }
+});
+test('10g: CHIN_NECK_TRANSITION is now LABELABLE_WITH_CAUTION (BI-2F1 promotion), never the stronger LABELABLE_FROM_IMAGE', () => {
+  assert.equal(AWB.regionLabelability('CHIN_NECK_TRANSITION').tier, 'LABELABLE_WITH_CAUTION');
+  assert.ok(AWB.regionLabelability('CHIN_NECK_TRANSITION').semanticDescription);
 });
 
 // 11 — holdout is absent from the real BI-1W development bundle, cross-checked against the

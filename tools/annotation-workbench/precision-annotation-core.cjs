@@ -305,6 +305,56 @@
     return Object.assign({}, next, { basedOnFingerprint: lockedRecord.fingerprint, basedOnRevision: lockedRecord.revision });
   }
 
+  /** BI-2F1 -- categorical counterpart to lockBlindAnnotation. The categorical region-labeling
+   *  path answers are NOT geometry (no x/y points), so this does not force them through
+   *  lockBlindAnnotation's points/geometryType shape -- it reuses the exact same underlying
+   *  primitives instead (computeFingerprint/canonicalStringify, Object.freeze, deterministic
+   *  ordering, the same lockedAtIso/bundleId/entryKey/revision record fields) applied to an
+   *  ordered array of per-region categorical answers. Same philosophy, honestly different shape. */
+  function lockBlindCategoricalAnswers(answers, meta) {
+    meta = meta || {};
+    // Deterministic order: sort by region name so the fingerprint never depends on the original
+    // insertion/iteration order of the caller's answers array.
+    var sorted = (answers || []).slice().sort(function (a, b) {
+      return a.region < b.region ? -1 : (a.region > b.region ? 1 : 0);
+    });
+    var answersCopy = sorted.map(function (a) {
+      return {
+        region: a.region,
+        hairState: a.hairState,
+        surfaceObservability: a.surfaceObservability == null ? null : a.surfaceObservability,
+        annotationStatus: a.annotationStatus,
+        annotationConfidence: a.annotationConfidence == null ? null : a.annotationConfidence,
+        notes: a.notes ? String(a.notes) : ''
+      };
+    });
+    var record = {
+      locked: true,
+      kind: 'CATEGORICAL_REGION_ANSWERS',
+      answers: answersCopy,
+      lockedAtIso: meta.lockedAtIso || new Date().toISOString(),
+      bundleId: meta.bundleId != null ? meta.bundleId : null,
+      entryKey: meta.entryKey != null ? meta.entryKey : null,
+      revision: isFiniteNum(meta.revision) ? meta.revision : 1
+    };
+    record.fingerprint = computeFingerprint({ kind: record.kind, answers: record.answers, bundleId: record.bundleId, entryKey: record.entryKey });
+    return Object.freeze(record);
+  }
+  /** BI-2F1 -- categorical counterpart to createRevisionFromLocked. The original lockedRecord
+   *  argument is never written to; the new revision REFERENCES it via basedOnFingerprint/
+   *  basedOnRevision rather than mutating or replacing it. */
+  function createCategoricalRevisionFromLocked(lockedRecord, newAnswers, meta) {
+    if (!lockedRecord || !lockedRecord.locked || lockedRecord.kind !== 'CATEGORICAL_REGION_ANSWERS') {
+      throw new Error('createCategoricalRevisionFromLocked: lockedRecord must be an existing locked categorical record');
+    }
+    meta = meta || {};
+    var next = lockBlindCategoricalAnswers(newAnswers, {
+      lockedAtIso: meta.lockedAtIso, bundleId: lockedRecord.bundleId, entryKey: lockedRecord.entryKey,
+      revision: lockedRecord.revision + 1
+    });
+    return Object.assign({}, next, { basedOnFingerprint: lockedRecord.fingerprint, basedOnRevision: lockedRecord.revision });
+  }
+
   var API = {
     LOUPE_ZOOM_LEVELS: LOUPE_ZOOM_LEVELS,
     DEFAULT_LOUPE_ZOOM: DEFAULT_LOUPE_ZOOM,
@@ -325,7 +375,8 @@
     createHistory: createHistory, pushTransaction: pushTransaction, undo: undo, redo: redo,
     isBlindGtBundle: isBlindGtBundle, blindGtGeometryGuideForced: blindGtGeometryGuideForced,
     canonicalStringify: canonicalStringify, computeFingerprint: computeFingerprint,
-    lockBlindAnnotation: lockBlindAnnotation, createRevisionFromLocked: createRevisionFromLocked
+    lockBlindAnnotation: lockBlindAnnotation, createRevisionFromLocked: createRevisionFromLocked,
+    lockBlindCategoricalAnswers: lockBlindCategoricalAnswers, createCategoricalRevisionFromLocked: createCategoricalRevisionFromLocked
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

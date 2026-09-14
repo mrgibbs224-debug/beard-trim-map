@@ -200,7 +200,14 @@
     NECK_FRONT: Object.freeze({ tier: 'UNKNOWN_ONLY', semanticDescription: null }),
     NECK_LEFT: Object.freeze({ tier: 'UNKNOWN_ONLY', semanticDescription: null }),
     NECK_RIGHT: Object.freeze({ tier: 'UNKNOWN_ONLY', semanticDescription: null }),
-    CHIN_NECK_TRANSITION: Object.freeze({ tier: 'UNKNOWN_ONLY', semanticDescription: null })
+    // BI-2F1 -- promoted from UNKNOWN_ONLY, narrowly, on real (non-beard-model) evidence: BI-2C's
+    // CHIN_NECK_TRANSITION_RAIL (accuracy/sparse-neck-scaffold-v1.mjs) gives a real, personalized,
+    // pose-conditioned 2D curve estimate of WHERE the chin-to-neck transition sits for a given
+    // chin-up frame, built ENTIRELY from face geometry/landmark projection -- never from any
+    // Hairness/occupancy beard-vs-skin output. Kept at LABELABLE_WITH_CAUTION (not the stronger
+    // LABELABLE_FROM_IMAGE) because that curve is only a personalized geometric estimate, not a
+    // verified anchor, exactly mirroring UNDER_CHIN/UNDER_JAW_LEFT/RIGHT's own BI-1W precedent.
+    CHIN_NECK_TRANSITION: Object.freeze({ tier: 'LABELABLE_WITH_CAUTION', semanticDescription: 'The visible strip where the underside of the chin transitions into the front of the neck, seen from a tilted-up (chin-up) angle. Judge only the area shown by the highlighted guide -- do not guess beyond it.' })
   });
   /** Semantic-labelability classification for a requested AnatomicalRegion. Unrecognized region
    *  names fail closed to UNKNOWN_ONLY — never guessed as labelable. */
@@ -358,14 +365,26 @@
   function defaultRegionLabel() {
     return { hairState: 'UNKNOWN', annotationStatus: 'UNKNOWN', annotationConfidence: null, notes: '', surfaceObservability: null };
   }
+  // BI-2F1 -- one entry-level (per-image) blind lock/revision record, PARALLEL to byEntry's
+  // region-label map (never nested inside it, so a historical bundle/autosave/export that never
+  // heard of locking reads byEntry exactly as before -- byte-identical). Mirrors the contour/
+  // review lock shape (locked/lockedRecord/revisionNumber/basedOnFingerprint/basedOnRevision/
+  // priorRevisions) exactly, just keyed by entry instead of by contourType/target.
+  function defaultEntryMeta() { return { locked: false, lockedRecord: null, revisionNumber: 1, basedOnFingerprint: null, basedOnRevision: null, priorRevisions: [] }; }
+  function entryMetaOf(state, obsId) { return (state && state.entryMeta && state.entryMeta[obsId]) || defaultEntryMeta(); }
+  function assertEntryNotLocked(state, obsId) {
+    if (entryMetaOf(state, obsId).locked) throw new Error('this entry is LOCKED (blind GT) -- create a new revision rather than editing the locked original');
+  }
   function initAnnotationState(bundle) {
-    var byEntry = {};
+    var byEntry = {}; var entryMeta = {};
     (bundle.entries || []).forEach(function (e) {
       var m = {};
       (e.regionsToAnnotate || []).forEach(function (r) { m[r] = defaultRegionLabel(); });
-      byEntry[entryKey(e)] = m;
+      var k = entryKey(e);
+      byEntry[k] = m;
+      entryMeta[k] = defaultEntryMeta();
     });
-    return { workbenchVersion: WORKBENCH_VERSION, fingerprint: bundleFingerprint(bundle), byEntry: byEntry, position: 0, geometryGuide: false };
+    return { workbenchVersion: WORKBENCH_VERSION, fingerprint: bundleFingerprint(bundle), byEntry: byEntry, entryMeta: entryMeta, position: 0, geometryGuide: false };
   }
   // Geometry-guide UI state only. Never touches any annotation label / default.
   function setGeometryGuide(state, on) {
@@ -374,6 +393,7 @@
     return next;
   }
   function setRegionLabel(state, obsId, region, patch) {
+    assertEntryNotLocked(state, obsId);
     var next = JSON.parse(JSON.stringify(state));
     var m = next.byEntry[obsId] || (next.byEntry[obsId] = {});
     var cur = m[region] || defaultRegionLabel();
@@ -422,9 +442,63 @@
       return true;
     });
   }
+  /** BI-2F1 -- categorical BLIND-GT lock, ONE PER IMAGE/ENTRY (not per-region -- the whole set of
+   *  requested regions on this image is frozen together). Refuses unless isEntryComplete() is
+   *  already true for every requested region (Part "cannot lock an incomplete entry"). Builds a
+   *  deterministic frozen record via precisionCore.lockBlindCategoricalAnswers, carrying forward
+   *  any basedOnFingerprint/basedOnRevision lineage from an earlier revision of this same entry. */
+  function lockEntryAnswers(state, obsId, bundle, precisionCore, meta) {
+    var next = JSON.parse(JSON.stringify(state));
+    if (!next.entryMeta) next.entryMeta = {};
+    var em = next.entryMeta[obsId] || (next.entryMeta[obsId] = defaultEntryMeta());
+    if (em.locked) throw new Error('lockEntryAnswers: already locked -- create a new revision instead of re-locking');
+    var entry = (bundle.entries || []).filter(function (e) { return entryKey(e) === obsId; })[0];
+    if (!entry) throw new Error('lockEntryAnswers: no bundle entry for this id');
+    var labels = next.byEntry[obsId] || {};
+    if (!isEntryComplete(labels, entry.regionsToAnnotate)) {
+      throw new Error('lockEntryAnswers: entry is not complete -- every requested region needs an explicit decision before locking');
+    }
+    var answers = (entry.regionsToAnnotate || []).map(function (r) {
+      var l = labels[r] || defaultRegionLabel();
+      return { region: r, hairState: l.hairState, surfaceObservability: l.surfaceObservability, annotationStatus: l.annotationStatus, annotationConfidence: l.annotationConfidence, notes: l.notes };
+    });
+    var lockMeta = Object.assign({ entryKey: obsId, revision: isFiniteNum(em.revisionNumber) ? em.revisionNumber : 1 }, meta || {});
+    var record = precisionCore.lockBlindCategoricalAnswers(answers, lockMeta);
+    if (em.basedOnFingerprint != null) {
+      record = Object.freeze(Object.assign({}, record, { basedOnFingerprint: em.basedOnFingerprint, basedOnRevision: em.basedOnRevision }));
+    }
+    em.lockedRecord = record;
+    em.locked = true;
+    return next;
+  }
+  /** BI-2F1 -- categorical counterpart to createContourRevision/createReviewRevision. The
+   *  original locked record is archived (append-only) into priorRevisions, never mutated; the
+   *  new revision starts as an EDITABLE COPY of the exact locked answers, with an incremented
+   *  revisionNumber and explicit basedOnFingerprint/basedOnRevision lineage. */
+  function createCategoricalRevision(state, obsId, precisionCore) {
+    var next = JSON.parse(JSON.stringify(state));
+    if (!next.entryMeta) next.entryMeta = {};
+    var em = next.entryMeta[obsId];
+    if (!em || !em.locked || !em.lockedRecord) throw new Error('createCategoricalRevision: source entry is not locked -- nothing to revise');
+    var lockedSrc = em.lockedRecord;
+    var priorRevisions = (em.priorRevisions || []).concat([lockedSrc]);
+    var labels = {};
+    lockedSrc.answers.forEach(function (a) {
+      labels[a.region] = { hairState: a.hairState, annotationStatus: a.annotationStatus, annotationConfidence: a.annotationConfidence, notes: a.notes, surfaceObservability: a.surfaceObservability };
+    });
+    next.byEntry[obsId] = labels;
+    next.entryMeta[obsId] = {
+      locked: false, lockedRecord: null,
+      revisionNumber: lockedSrc.revision + 1,
+      basedOnFingerprint: lockedSrc.fingerprint,
+      basedOnRevision: lockedSrc.revision,
+      priorRevisions: priorRevisions
+    };
+    return next;
+  }
   function progressCounts(bundle, state) {
     var entries = bundle.entries || [];
-    var regionsRequested = 0, regionsLabeled = 0, imagesCompleted = 0, imagesNeedingReview = 0;
+    var regionsRequested = 0, regionsLabeled = 0, imagesCompleted = 0, imagesNeedingReview = 0, imagesLocked = 0;
     var ambiguousLabels = 0, excludedLabels = 0;
     entries.forEach(function (e) {
       var labels = entryLabels(state, entryKey(e));
@@ -440,6 +514,7 @@
       });
       if (isEntryComplete(labels, reqs)) imagesCompleted++;
       if (anyReview) imagesNeedingReview++;
+      if (entryMetaOf(state, entryKey(e)).locked) imagesLocked++;
     });
     return {
       imageIndex: Math.min(state.position, Math.max(0, entries.length - 1)),
@@ -447,6 +522,7 @@
       regionsLabeled: regionsLabeled,
       regionsRequested: regionsRequested,
       imagesCompleted: imagesCompleted,
+      imagesLocked: imagesLocked,
       imagesNeedingReview: imagesNeedingReview,
       ambiguousLabels: ambiguousLabels,
       excludedLabels: excludedLabels
@@ -553,6 +629,10 @@
         entryIds: (bundle.entries || []).map(function (e) { return entryKey(e); })
       },
       labels: JSON.parse(JSON.stringify(state.byEntry)),
+      // BI-2F1 -- entry-level blind lock/revision state, additive and separate from `labels`
+      // (never nested inside it) so an OLDER autosave payload (no entryMeta at all) still
+      // restores exactly as before -- see restoreFromAutosave's fail-closed handling below.
+      entryMeta: JSON.parse(JSON.stringify(state.entryMeta || {})),
       position: state.position,
       geometryGuide: !!state.geometryGuide  // UI toggle state only — NO coordinates, NO pixels
       // rawImagePayload is intentionally absent
@@ -577,8 +657,32 @@
         if (ANNOTATION_STATUSES.indexOf(l.annotationStatus) !== -1) patch.annotationStatus = l.annotationStatus;
         patch.annotationConfidence = clampConfidence(l.annotationConfidence);
         patch.notes = l.notes == null ? '' : String(l.notes);
+        // restored BEFORE entryMeta.locked is applied below, so a locked entry's own saved
+        // labels can still be replayed here without assertEntryNotLocked rejecting them.
         fresh = setRegionLabel(fresh, obsId, region, patch);
       });
+    });
+    // BI-2F1 -- restore entry-level lock/revision state LAST (after every label has already been
+    // replayed above), and only when the saved lockedRecord is structurally plausible -- fails
+    // closed to unlocked otherwise, exactly mirroring restoreContourFromAutosave's identical
+    // pattern. A lock genuinely must survive reload (that is the entire point of "locked").
+    var savedMeta = autosave.entryMeta || {};
+    Object.keys(savedMeta).forEach(function (obsId) {
+      if (!fresh.entryMeta[obsId]) return; // unknown entry -- already reported via `dropped` above if labels existed
+      var sm = savedMeta[obsId] || {};
+      var validLockedRecord = (sm.locked === true && sm.lockedRecord && typeof sm.lockedRecord === 'object'
+        && typeof sm.lockedRecord.fingerprint === 'string' && Array.isArray(sm.lockedRecord.answers)) ? sm.lockedRecord : null;
+      fresh.entryMeta[obsId] = {
+        locked: !!validLockedRecord,
+        lockedRecord: validLockedRecord ? Object.freeze(JSON.parse(JSON.stringify(validLockedRecord))) : null,
+        revisionNumber: isFiniteNum(sm.revisionNumber) ? sm.revisionNumber : 1,
+        basedOnFingerprint: sm.basedOnFingerprint != null ? sm.basedOnFingerprint : null,
+        basedOnRevision: isFiniteNum(sm.basedOnRevision) ? sm.basedOnRevision : null,
+        priorRevisions: Array.isArray(sm.priorRevisions)
+          ? sm.priorRevisions.filter(function (r) { return r && typeof r.fingerprint === 'string' && Array.isArray(r.answers); })
+            .map(function (r) { return Object.freeze(JSON.parse(JSON.stringify(r))); })
+          : []
+      };
     });
     fresh.position = isFiniteNum(autosave.position) ? Math.max(0, Math.min(autosave.position, (bundle.entries || []).length - 1)) : 0;
     fresh.geometryGuide = !!autosave.geometryGuide;
@@ -594,6 +698,10 @@
       var key = entryKey(e);
       var mode = identityModeOf(e);
       var m = entryLabels(state, key);
+      // BI-2F1 -- the entry's blind-lock state is embedded on EVERY label row from this entry
+      // (not just carried live in `state`) so validateExport can harden BLIND_GT completeness/
+      // lock requirements from the exported JSON alone, without needing the live state object.
+      var em = entryMetaOf(state, key);
       (e.regionsToAnnotate || []).forEach(function (region) {
         var l = m[region] || defaultRegionLabel();
         if (l.annotationStatus === 'LABELED') summary.definitive++;
@@ -615,6 +723,12 @@
           poseId: e.poseId || null,
           observedPoseRegion: e.observedPoseRegion || null,
           anatomicalRegion: region,
+          // BI-2F1 (Part "Region identity") -- the exact, stable, one-to-one evaluation-region ID
+          // (e.g. the literal BI-2E JAW_SUPPORT region key) a bundle entry declares via its own
+          // `regionEvaluationIds` map. Falls back to the workbench's own canonical `region` key
+          // ONLY when the bundle never declared an explicit mapping (older/non-evaluation bundles)
+          // -- never a guessed or ambiguous post-hoc translation performed here.
+          evaluationRegionId: (regionEvaluationIdOf(e, region)),
           hairState: l.hairState || 'UNKNOWN',
           surfaceObservability: l.surfaceObservability == null ? null : l.surfaceObservability,
           annotationStatus: l.annotationStatus || 'UNKNOWN',
@@ -622,7 +736,14 @@
           syncStatus: e.syncStatus || null,
           sourceMethod: MANUAL_GROUND_TRUTH,
           revision: isFiniteNum(options.revision) ? options.revision : null,
-          notes: l.notes ? String(l.notes) : null
+          notes: l.notes ? String(l.notes) : null,
+          // BI-2F1 -- entry-level BLIND_GT lock/revision lineage, mirrored onto every label row
+          // from this entry (see comment above).
+          entryLocked: em.locked === true,
+          entryLockFingerprint: (em.locked && em.lockedRecord) ? em.lockedRecord.fingerprint : null,
+          entryRevision: isFiniteNum(em.revisionNumber) ? em.revisionNumber : 1,
+          entryBasedOnFingerprint: em.basedOnFingerprint != null ? em.basedOnFingerprint : null,
+          entryBasedOnRevision: isFiniteNum(em.basedOnRevision) ? em.basedOnRevision : null
           // NO rawImagePayload / base64 / dataUrl
         });
       });
@@ -634,10 +755,14 @@
       bundleId: bundle.bundleId || null,
       datasetId: bundle.datasetId || null,
       datasetRevision: bundle.datasetRevision == null ? null : bundle.datasetRevision,
+      gtMode: bundle.gtMode || null,
       sourceMethod: MANUAL_GROUND_TRUTH,
       summary: summary,
       labels: labels
     };
+  }
+  function regionEvaluationIdOf(e, region) {
+    return (e.regionEvaluationIds && e.regionEvaluationIds[region] != null) ? e.regionEvaluationIds[region] : region;
   }
   function validateExport(exportObj, bundle) {
     var errors = [];
@@ -675,6 +800,20 @@
       if (ANNOTATION_STATUSES.indexOf(l.annotationStatus) === -1) errors.push('label ' + i + ' invalid annotationStatus');
       if (mode === 'RAW_SCAN_OBSERVATION' && l.sourceScanObservationId != null) errors.push('label ' + i + ' RAW_SCAN_OBSERVATION must not carry a synthesized sourceScanObservationId');
       if (/base64|data:image|rawImage/i.test(JSON.stringify(l))) errors.push('label ' + i + ' contains image payload');
+      // BI-2F1 -- for a BLIND_GT bundle, hardened directly against the EXPORTED data (not the live
+      // UI state), so manually invoking buildExport/validateExport from outside the UI cannot
+      // bypass the same completeness/lock requirement the "Export GroundTruth JSON" button
+      // enforces. annotationStatus 'UNKNOWN' is a legitimate pending/untouched sentinel, never
+      // counted as a real decision here -- distinct from hairState:'UNKNOWN', which IS a
+      // legitimate explicit human answer and is never blocked by this check.
+      if (bundle.gtMode === 'BLIND_GT') {
+        if (!l.annotationStatus || l.annotationStatus === 'UNKNOWN') {
+          errors.push('label ' + i + ' (region ' + (l.anatomicalRegion || '?') + ') is BLIND_GT but still has a pending annotationStatus -- every requested region must be explicitly decided before export');
+        }
+        if (l.entryLocked !== true) {
+          errors.push('label ' + i + ' (region ' + (l.anatomicalRegion || '?') + ', entry ' + (e ? entryKey(e) : '?') + ') is BLIND_GT but its entry is not locked -- lock every image\'s answers before export');
+        }
+      }
     });
     return { ok: errors.length === 0, errors: errors };
   }
@@ -1834,6 +1973,11 @@
     defaultRegionLabel: defaultRegionLabel,
     initAnnotationState: initAnnotationState,
     setRegionLabel: setRegionLabel,
+    defaultEntryMeta: defaultEntryMeta,
+    entryMetaOf: entryMetaOf,
+    assertEntryNotLocked: assertEntryNotLocked,
+    lockEntryAnswers: lockEntryAnswers,
+    createCategoricalRevision: createCategoricalRevision,
     setGeometryGuide: setGeometryGuide,
     navigate: navigate,
     entryLabels: entryLabels,

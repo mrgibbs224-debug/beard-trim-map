@@ -209,11 +209,15 @@ test('20: export carries no overlay / geometry-guide / landmark fields', () => {
     assert.equal(json.toLowerCase().includes(bad.toLowerCase()), false, 'export must not contain ' + bad);
   }
   // labels keep exactly the BS1-F shape, plus BI-1W's additive dual-channel / raw-identity fields
-  // (surfaceObservability, identityMode, rawObservationId, adapterRetained) — schema grows only
-  // by adding keys, never by renaming or removing any historical one.
+  // (surfaceObservability, identityMode, rawObservationId, adapterRetained) and BI-2F1's additive
+  // evaluation-region-identity / entry-lock-lineage fields (evaluationRegionId, entryLocked,
+  // entryLockFingerprint, entryRevision, entryBasedOnFingerprint, entryBasedOnRevision) — schema
+  // grows only by adding keys, never by renaming or removing any historical one.
   for (const l of exp.labels) {
     assert.deepEqual(Object.keys(l).sort(), [
       'adapterRetained', 'anatomicalRegion', 'annotationConfidence', 'annotationStatus',
+      'entryBasedOnFingerprint', 'entryBasedOnRevision', 'entryLockFingerprint', 'entryLocked',
+      'entryRevision', 'evaluationRegionId',
       'hairState', 'identityMode', 'imageRef', 'labelId', 'nativeFrameTimestampNs', 'notes',
       'observedPoseRegion', 'poseId', 'rawObservationId', 'revision', 'scanSessionId',
       'sourceMethod', 'sourceScanObservationId', 'surfaceObservability', 'syncStatus'
